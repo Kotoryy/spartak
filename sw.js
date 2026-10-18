@@ -1,6 +1,6 @@
 // Кэширует оболочку приложения, чтобы оно открывалось без интернета, и показывает push-уведомления.
 // Данные матчей хранятся в localStorage самим приложением.
-const CACHE = 'spartak-shell-v2';
+const CACHE = 'spartak-shell-v3';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
@@ -19,7 +19,9 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   if (url.origin === location.origin) {
     // Сначала сеть (чтобы обновления доходили), при офлайне — кэш
-    e.respondWith(fetch(e.request)
+    // Всегда сверяемся с сервером, а не с кэшем браузера (запрос перехода по странице так переопределить нельзя — берём адрес)
+    const req = e.request.mode === 'navigate' ? e.request.url : e.request;
+    e.respondWith(fetch(req, { cache: 'no-cache' })
       .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return res; })
       .catch(() => caches.match(e.request, { ignoreSearch: true }).then((r) => r || caches.match('index.html'))));
   } else if (url.hostname === 'a.espncdn.com' || (url.hostname.endsWith('thesportsdb.com') && url.pathname.includes('/images/'))) {
