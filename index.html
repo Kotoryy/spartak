@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Спартак · Матчи</title>
+  <meta name="description" content="Ближайшие матчи, результаты и таблица ФК «Спартак» Москва">
+  <meta name="theme-color" content="#0d0a0b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Спартак">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <img src="icons/icon-192.png" alt="" class="brand-icon">
+      <div>
+        <div class="brand-title">Спартак</div>
+        <div class="brand-sub">Матчи и результаты</div>
+      </div>
+    </div>
+    <button class="icon-btn" id="refreshBtn" aria-label="Обновить">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+    </button>
+  </header>
+
+  <main class="container">
+    <section class="hero" id="hero">
+      <div class="hero-skeleton">
+        <div class="sk sk-line w40"></div>
+        <div class="sk-row"><div class="sk sk-circle"></div><div class="sk sk-line w20"></div><div class="sk sk-circle"></div></div>
+        <div class="sk sk-line w60"></div>
+      </div>
+    </section>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="upcoming" role="tab">Расписание</button>
+      <button class="tab" data-tab="results" role="tab">Результаты</button>
+      <button class="tab" data-tab="table" role="tab">Таблица</button>
+      <span class="tab-indicator" aria-hidden="true"></span>
+    </nav>
+
+    <section class="panel active" id="panel-upcoming"></section>
+    <section class="panel" id="panel-results"></section>
+    <section class="panel" id="panel-table"></section>
+
+    <footer class="footer">
+      <div id="status">Загрузка…</div>
+      <div class="muted">Данные: TheSportsDB · время показано по вашему часовому поясу</div>
+    </footer>
+  </main>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>
