@@ -281,7 +281,7 @@ function renderDayMode() {
   }
   el.innerHTML = `<div class="db-title">🔴⚪ Сегодня играем!</div>
     <div class="db-sub">${esc(m.home.name)} — ${esc(m.away.name)}${m.timeValid ? ` в ${fmtTime.format(kickoff(m))}` : ''}${m.tv ? ` · ${esc(m.tv)}` : ''}</div>
-    <div class="db-scarf">🧣 Не забудь шарф!</div>
+    <div class="db-scarf">👕 Не забудь счастливую майку!</div>
     <button class="btn db-btn" id="bigOpen">⏱ Таймер на весь экран</button>`;
   $('#bigOpen').onclick = () => openBigTimer(m.id);
 }
@@ -297,7 +297,7 @@ function openBigTimer(id) {
     <div class="bt-names">${esc(m.home.name)} — ${esc(m.away.name)}</div>
     <div class="bt-time" id="btTime"></div>
     <div class="bt-meta">${esc(metaLine(m))}${m.timeValid ? ' · ' + fmtTime.format(kickoff(m)) : ''}</div>
-    <div class="bt-scarf">🧣 Шарф надел?</div>`;
+    <div class="bt-scarf">👕 Счастливая майка на тебе?</div>`;
   const el = $('#bigTimer');
   el.hidden = false;
   el.requestFullscreen?.().catch(() => {});
