@@ -121,8 +121,9 @@ function detectGoals(prev, next) {
   }
 }
 
-function celebrate() {
+function celebrate({ text = 'ГОЛ!', sound = true } = {}) {
   const o = $('#goalOverlay');
+  o.querySelector('.goal-text').textContent = text;
   o.querySelectorAll('.confetti').forEach((c) => c.remove());
   for (let i = 0; i < 70; i++) {
     const c = document.createElement('i');
@@ -137,8 +138,195 @@ function celebrate() {
   o.classList.remove('show');
   void o.offsetWidth;
   o.classList.add('show');
+  if (sound) playRoar();
   try { navigator.vibrate?.([200, 100, 200, 100, 400]); } catch { /* нет вибрации */ }
   setTimeout(() => o.classList.remove('show'), 3800);
+}
+
+// ---------- Рёв трибун ----------
+// Звук не из файла, а синтезируется: шум толпы + сотни «голосов» на гласной «о» + дудки.
+let audioCtx = null;
+function unlockAudio() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  if (!audioCtx) audioCtx = new AC();
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+  return audioCtx;
+}
+// Браузеры разрешают звук только после касания страницы — «разблокируем» его заранее
+['pointerdown', 'keydown', 'touchend'].forEach((ev) => document.addEventListener(ev, unlockAudio, { passive: true }));
+
+function playRoar(force = false) {
+  if (!force && settings.sound === false) return;
+  const ctx = unlockAudio();
+  if (!ctx) return;
+  const t = ctx.currentTime + 0.05, dur = 4.8;
+
+  const master = ctx.createGain();
+  master.gain.value = 0.55;
+  const comp = ctx.createDynamicsCompressor();
+  master.connect(comp).connect(ctx.destination);
+
+  // 1. Шум трибун: розовый шум через полосовой фильтр, нарастает и затихает
+  const len = Math.floor(ctx.sampleRate * dur);
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    let b0 = 0, b1 = 0, b2 = 0;
+    for (let i = 0; i < len; i++) {
+      const w = Math.random() * 2 - 1;
+      b0 = 0.99765 * b0 + w * 0.099; b1 = 0.963 * b1 + w * 0.2965; b2 = 0.57 * b2 + w * 1.0526;
+      d[i] = (b0 + b1 + b2 + w * 0.1848) * 0.2;
+    }
+  }
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  const bp = ctx.createBiquadFilter();
+  bp.type = 'bandpass'; bp.Q.value = 0.7;
+  bp.frequency.setValueAtTime(450, t);
+  bp.frequency.linearRampToValueAtTime(950, t + 0.7);
+  bp.frequency.linearRampToValueAtTime(600, t + dur);
+  const ng = ctx.createGain();
+  ng.gain.setValueAtTime(0.0001, t);
+  ng.gain.exponentialRampToValueAtTime(1, t + 0.45);
+  ng.gain.setValueAtTime(1, t + 1.8);
+  ng.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  noise.connect(bp).connect(ng).connect(master);
+  noise.start(t); noise.stop(t + dur);
+
+  // 2. «Го-о-ол!» — много голосов разной высоты на гласной «о»
+  const vowel = ctx.createBiquadFilter();
+  vowel.type = 'bandpass'; vowel.frequency.value = 520; vowel.Q.value = 2.5;
+  const vowel2 = ctx.createBiquadFilter();
+  vowel2.type = 'bandpass'; vowel2.frequency.value = 900; vowel2.Q.value = 3;
+  const vg = ctx.createGain();
+  vg.gain.setValueAtTime(0.0001, t + 0.1);
+  vg.gain.exponentialRampToValueAtTime(0.5, t + 0.5);
+  vg.gain.setValueAtTime(0.5, t + 2.2);
+  vg.gain.exponentialRampToValueAtTime(0.001, t + 3.6);
+  vowel.connect(vg); vowel2.connect(vg); vg.connect(master);
+  for (let i = 0; i < 40; i++) {
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    const f = 130 + Math.random() * 160;
+    o.frequency.setValueAtTime(f * 0.85, t);
+    o.frequency.exponentialRampToValueAtTime(f, t + 0.4); // голос «взлетает»
+    o.frequency.setValueAtTime(f, t + 2.4);
+    o.frequency.exponentialRampToValueAtTime(f * 0.8, t + 3.6);
+    o.detune.value = Math.random() * 40 - 20;
+    const g = ctx.createGain();
+    g.gain.value = 0.04;
+    o.connect(g); g.connect(vowel); g.connect(vowel2);
+    o.start(t + Math.random() * 0.15); o.stop(t + 3.7);
+  }
+
+  // 3. Дудки: три коротких сигнала
+  const hornF = ctx.createBiquadFilter();
+  hornF.type = 'lowpass'; hornF.frequency.value = 2200;
+  hornF.connect(master);
+  [0.2, 0.55, 0.9].forEach((at, k) => {
+    const g = ctx.createGain();
+    const st = t + at, en = st + (k === 2 ? 0.55 : 0.25);
+    g.gain.setValueAtTime(0.0001, st);
+    g.gain.exponentialRampToValueAtTime(0.12, st + 0.03);
+    g.gain.setValueAtTime(0.12, en - 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, en);
+    g.connect(hornF);
+    for (const f of [466, 587]) {
+      const o = ctx.createOscillator();
+      o.type = 'square'; o.frequency.value = f;
+      o.connect(g); o.start(st); o.stop(en);
+    }
+  });
+}
+
+// ---------- Матч-день и праздник после победы ----------
+const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+function dayMode(now = new Date()) {
+  const list = matches();
+  const today = list.find((m) => (m.state === 'pre' || isLive(m)) && sameDay(kickoff(m), now));
+  if (today) return { type: 'matchday', m: today };
+  // После победы — праздник до 6 утра следующего дня
+  const last = list.filter((m) => m.state === 'post').pop();
+  if (last && result(last) === 'W') {
+    const until = new Date(kickoff(last));
+    until.setDate(until.getDate() + 1);
+    until.setHours(6, 0, 0, 0);
+    if (now < until && now - kickoff(last) < 30 * 60 * MIN) return { type: 'victory', m: last };
+  }
+  return null;
+}
+
+function renderDayMode() {
+  const mode = dayMode();
+  document.body.classList.toggle('mode-matchday', mode?.type === 'matchday');
+  document.body.classList.toggle('mode-victory', mode?.type === 'victory');
+  const el = $('#dayBanner');
+  if (!mode) { el.hidden = true; return; }
+  const m = mode.m;
+  el.hidden = false;
+  if (mode.type === 'victory') {
+    el.innerHTML = `<div class="db-title">🎉 Победа!</div>
+      <div class="db-sub">${esc(m.home.name)} ${m.home.score}:${m.away.score} ${esc(m.away.name)} · празднуем до утра</div>`;
+    // Салют один раз за победу
+    const key = 'spartak-victory-' + m.id;
+    if (!store.get(key, false)) { store.set(key, true); setTimeout(() => celebrate({ text: 'ПОБЕДА!', sound: false }), 600); }
+    return;
+  }
+  if (isLive(m)) {
+    el.innerHTML = `<div class="db-title">🔥 Матч идёт — болеем!</div>
+      <div class="db-sub">${esc(m.home.name)} ${m.home.score ?? 0}:${m.away.score ?? 0} ${esc(m.away.name)} · ${esc(m.clock || 'LIVE')}</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="db-title">🔴⚪ Сегодня играем!</div>
+    <div class="db-sub">${esc(m.home.name)} — ${esc(m.away.name)}${m.timeValid ? ` в ${fmtTime.format(kickoff(m))}` : ''}${m.tv ? ` · ${esc(m.tv)}` : ''}</div>
+    <div class="db-scarf">🧣 Не забудь шарф!</div>
+    <button class="btn db-btn" id="bigOpen">⏱ Таймер на весь экран</button>`;
+  $('#bigOpen').onclick = () => openBigTimer(m.id);
+}
+
+let bigTimerId = null;
+function openBigTimer(id) {
+  const m = findMatch(id);
+  if (!m) return;
+  bigTimerId = id;
+  $('#bigInner').innerHTML = `
+    <div class="bt-label">${sameDay(kickoff(m), new Date()) ? 'Сегодня играем!' : 'До матча'}</div>
+    <div class="bt-teams">${badge(m.home.logo, 'bt-badge', m.home.name)}<span>—</span>${badge(m.away.logo, 'bt-badge', m.away.name)}</div>
+    <div class="bt-names">${esc(m.home.name)} — ${esc(m.away.name)}</div>
+    <div class="bt-time" id="btTime"></div>
+    <div class="bt-meta">${esc(metaLine(m))}${m.timeValid ? ' · ' + fmtTime.format(kickoff(m)) : ''}</div>
+    <div class="bt-scarf">🧣 Шарф надел?</div>`;
+  const el = $('#bigTimer');
+  el.hidden = false;
+  el.requestFullscreen?.().catch(() => {});
+  tickCountdown();
+}
+
+function closeBigTimer() {
+  bigTimerId = null;
+  $('#bigTimer').hidden = true;
+  if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+}
+
+function tickBigTimer() {
+  if (!bigTimerId) return;
+  const m = findMatch(bigTimerId);
+  const el = $('#btTime');
+  if (!m || !el) return;
+  if (m.state !== 'pre') {
+    el.innerHTML = isLive(m) ? `<span class="bt-live">${m.home.score ?? 0}:${m.away.score ?? 0}</span>` : 'Финал';
+    return;
+  }
+  let diff = Math.max(0, kickoff(m) - Date.now());
+  if (!diff) { el.textContent = 'Начинаем!'; return; }
+  const d = Math.floor(diff / 86400e3); diff -= d * 86400e3;
+  const h = Math.floor(diff / 3600e3); diff -= h * 3600e3;
+  const mi = Math.floor(diff / 60e3); diff -= mi * 60e3;
+  const sec = Math.floor(diff / 1e3);
+  const pad = (n) => String(n).padStart(2, '0');
+  el.textContent = `${d ? d + 'д ' : ''}${pad(h)}:${pad(mi)}:${pad(sec)}`;
 }
 
 // ---------- Отрисовка ----------
@@ -201,6 +389,7 @@ function renderHero() {
 }
 
 function tickCountdown() {
+  tickBigTimer();
   const el = $('#countdown');
   if (!el) return;
   let diff = Math.max(0, Number(el.dataset.t) - Date.now());
@@ -292,6 +481,7 @@ function renderTable() {
 }
 
 function render() {
+  renderDayMode();
   renderHero();
   renderUpcoming();
   renderResults();
@@ -551,6 +741,14 @@ async function openSettings() {
     </div>
 
     <div class="sh-section">
+      <div class="sh-label">Звук</div>
+      <div class="card-list">
+        <label class="sw-row"><span>Рёв трибун при голе «Спартака»</span><input type="checkbox" id="soundOn" ${settings.sound !== false ? 'checked' : ''}><i class="sw"></i></label>
+      </div>
+      <div class="sh-actions"><button class="btn soft" id="soundTest">🔊 Послушать</button></div>
+    </div>
+
+    <div class="sh-section">
       <div class="sh-label">Оформление</div>
       <div class="seg">${THEMES.map(([k, l]) => `<button class="seg-btn ${settings.theme === k ? 'active' : ''}" data-theme-pick="${k}">${l}</button>`).join('')}</div>
     </div>
@@ -572,6 +770,8 @@ async function openSettings() {
     saveSettings();
     if (!desk && (await notifStatus()) === 'on') subscribe(true).catch(() => {});
   }));
+  $('#soundOn').onchange = (e) => { settings.sound = e.target.checked; saveSettings(); };
+  $('#soundTest').onclick = () => playRoar(true);
   document.querySelectorAll('[data-theme-pick]').forEach((b) => (b.onclick = () => {
     settings.theme = b.dataset.themePick; saveSettings(); applyTheme(); openSettings();
   }));
@@ -868,8 +1068,10 @@ setupTabs();
 $('#refreshBtn').onclick = () => refresh(true);
 $('#settingsBtn').onclick = openSettings;
 $('#sheetClose').onclick = closeSheet;
+$('#bigClose').onclick = closeBigTimer;
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && bigTimerId) closeBigTimer(); });
 $('#sheetBackdrop').addEventListener('click', (e) => { if (e.target.id === 'sheetBackdrop') closeSheet(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSheet(); if (bigTimerId) closeBigTimer(); } });
 document.addEventListener('click', (e) => {
   const card = e.target.closest('[data-card]');
   if (card) { openShareCard(card.dataset.card); return; }
@@ -877,6 +1079,8 @@ document.addEventListener('click', (e) => {
   if (pl) { openPlayer(pl.dataset.player); return; }
   const open = e.target.closest('[data-open]');
   if (open) { openMatch(open.dataset.open); return; }
+  const cd = e.target.closest('#countdown');
+  if (cd) { const hm = heroMatch(); if (hm) openBigTimer(hm.id); return; }
   const mt = e.target.closest('[data-mtab]');
   if (mt) { matchTab = mt.dataset.mtab; renderMatchSheet(sheetMatchId, false); }
 });

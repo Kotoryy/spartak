@@ -531,3 +531,64 @@ body.no-scroll { overflow: hidden; }
 }
 .mc-share { margin: 4px auto 0; flex: none; padding: 9px 16px; font-size: 13.5px; }
 .card-preview { width: 100%; max-width: 420px; margin: 0 auto; border-radius: 18px; box-shadow: 0 16px 40px rgba(0,0,0,.35); }
+
+/* ---------- Матч-день ---------- */
+.day-banner {
+  position: relative; overflow: hidden; margin: 6px 0 14px; padding: 16px 18px; border-radius: 22px;
+  background: linear-gradient(120deg, #fff, #ffe9ec); color: #6d0814; text-align: center;
+  box-shadow: 0 10px 30px -10px rgba(225,24,44,.6);
+}
+.day-banner[hidden] { display: none; }
+.day-banner::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.7) 50%, transparent 70%);
+  transform: translateX(-100%); animation: shine 3.5s ease-in-out infinite;
+}
+@keyframes shine { 60%, 100% { transform: translateX(100%); } }
+.db-title { font-size: 22px; font-weight: 900; letter-spacing: -0.01em; color: var(--red); }
+.db-sub { font-size: 14px; font-weight: 600; margin-top: 4px; }
+.db-scarf { font-size: 14px; margin-top: 6px; }
+.db-btn { position: relative; z-index: 1; margin-top: 12px; background: var(--red); color: #fff; width: 100%; }
+body.mode-matchday .hero { animation: heroPulse 2.4s ease-in-out infinite; }
+@keyframes heroPulse { 50% { box-shadow: 0 20px 60px -6px rgba(225, 24, 44, .85), inset 0 1px 0 rgba(255,255,255,.18); } }
+body.mode-matchday #countdown { cursor: pointer; }
+body.mode-matchday .cd-num { font-size: 32px; }
+
+/* праздник после победы */
+body.mode-victory .day-banner { background: linear-gradient(120deg, #ffd54a, #fff3c4 45%, #ffd54a); color: #5a3b00; }
+body.mode-victory .db-title { color: #b3001b; font-size: 26px; }
+body.mode-victory .bg-glow {
+  background:
+    radial-gradient(50% 60% at 20% 10%, rgba(255, 213, 74, .35), transparent 70%),
+    radial-gradient(60% 60% at 80% 0%, rgba(225, 24, 44, .55), transparent 70%);
+}
+body.mode-victory .hero { box-shadow: 0 0 0 3px #ffd54a, 0 20px 50px -12px rgba(255, 190, 40, .55); }
+body.mode-victory::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .35;
+  background-image:
+    radial-gradient(circle, #ffd54a 2px, transparent 2.5px),
+    radial-gradient(circle, #ffffff 1.5px, transparent 2px),
+    radial-gradient(circle, #e1182c 2px, transparent 2.5px);
+  background-size: 140px 140px, 90px 90px, 170px 170px;
+  background-position: 0 0, 40px 60px, 80px 20px;
+  animation: sparkle 18s linear infinite;
+}
+@keyframes sparkle { to { background-position: 0 1400px, 40px 960px, 80px 1720px; } }
+
+/* таймер на весь экран */
+.big-timer {
+  position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; text-align: center; color: #fff;
+  background:
+    radial-gradient(80% 60% at 50% 30%, rgba(255,255,255,.12), transparent 70%),
+    linear-gradient(160deg, #e1182c, #7a0915 60%, #2a0307);
+  padding: calc(env(safe-area-inset-top) + 20px) 20px calc(env(safe-area-inset-bottom) + 20px);
+}
+.big-timer[hidden] { display: none; }
+.big-close { position: absolute; top: calc(env(safe-area-inset-top) + 16px); right: 16px; background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.2); color: #fff; }
+.bt-label { font-size: clamp(18px, 4vw, 28px); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; opacity: .9; }
+.bt-teams { display: flex; align-items: center; justify-content: center; gap: clamp(16px, 5vw, 48px); margin: 24px 0 10px; font-size: 40px; opacity: .95; }
+.bt-badge { width: clamp(90px, 22vw, 180px); height: clamp(90px, 22vw, 180px); object-fit: contain; filter: drop-shadow(0 10px 20px rgba(0,0,0,.4)); }
+.bt-names { font-size: clamp(20px, 4.5vw, 34px); font-weight: 800; }
+.bt-time { font-size: clamp(64px, 17vw, 200px); font-weight: 900; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; margin: 18px 0 8px; text-shadow: 0 8px 0 rgba(0,0,0,.2); }
+.bt-meta { font-size: clamp(14px, 3vw, 20px); opacity: .8; }
+.bt-scarf { margin-top: 26px; font-size: clamp(18px, 4vw, 26px); font-weight: 700; }
