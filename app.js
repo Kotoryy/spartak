@@ -196,7 +196,7 @@ function renderHero() {
 
   const cal = $('#calBtn');
   if (cal) cal.onclick = () => downloadIcs(m);
-  $('#shareBtn').onclick = () => share(m);
+  $('#shareBtn').onclick = () => (post ? openShareCard(m.id) : share(m));
   tickCountdown();
 }
 
@@ -307,7 +307,8 @@ let squad = store.get('spartak-squad', null); // { ts, season, groups }
 let squadLoading = false;
 
 async function loadSquad(force = false) {
-  if (squadLoading || (!force && squad && Date.now() - squad.ts < 60 * MIN)) return;
+  const fresh = squad && allPlayers().every((p) => p.photo) ? 60 * MIN : 5 * MIN; // пока фото собираются — чаще
+  if (squadLoading || (!force && squad && Date.now() - squad.ts < fresh)) return;
   squadLoading = true;
   try {
     squad = { ...(await getJSON('/squad')), ts: Date.now() };
@@ -334,7 +335,7 @@ function renderSquad() {
         <div class="sq-title"><span>${esc(g.title)}</span><span class="sq-cols"><span>И</span><span>Г</span><span>П</span></span></div>
         <div class="table-card">${g.players.map((p) => `
           <button class="sq-row" data-player="${esc(p.id)}">
-            <span class="sq-n">${esc(p.n || '–')}</span>
+            ${avatar(p)}
             <span style="min-width:0"><div class="sq-name">${esc(p.name)}</div>
               <div class="sq-meta">${p.flag ? `<img src="${esc(p.flag)}" alt="" loading="lazy">` : ''}${esc(p.country)}${p.age ? ` · ${p.age} ${plural(p.age, 'год', 'года', 'лет')}` : ''}${p.injured ? ' · <span class="inj">травма</span>' : ''}</div></span>
             <span class="sq-v">${p.apps}</span>
@@ -347,6 +348,13 @@ function renderSquad() {
     <p class="note">Статистика в чемпионате · ${esc(squad.season || 'РПЛ')}</p>`;
 }
 
+// Фото игрока с номером в уголке; без фото — просто номер
+function avatar(p) {
+  if (!p.photo) return `<span class="sq-n">${esc(p.n || '–')}</span>`;
+  const src = p.photo.endsWith('/small') ? p.photo.replace(/\/small$/, '/tiny') : p.photo;
+  return `<span class="sq-ph"><img src="${esc(src)}" alt="" loading="lazy" onerror="this.parentNode.classList.add('noimg')"><b>${esc(p.n || '')}</b></span>`;
+}
+
 function openPlayer(id) {
   const p = allPlayers().find((x) => x.id === id);
   if (!p) return;
@@ -355,7 +363,7 @@ function openPlayer(id) {
   const gk = p.pos === 'G';
   openSheet(`
     <div class="pl-head">
-      <div class="pl-n">${esc(p.n || '–')}</div>
+      ${p.photo ? `<div class="pl-photo"><img src="${esc(p.photo)}" alt="${esc(p.name)}"><b>${esc(p.n || '')}</b></div>` : `<div class="pl-n">${esc(p.n || '–')}</div>`}
       <div class="pl-name">${esc(p.name)}</div>
       <div class="pl-sub">${p.flag ? `<img src="${esc(p.flag)}" alt="">` : ''}${esc(p.country)}${p.age ? ` · ${p.age} ${plural(p.age, 'год', 'года', 'лет')}` : ''} · ${esc({ G: 'вратарь', D: 'защитник', M: 'полузащитник', F: 'нападающий' }[p.pos] || '')}</div>
       ${p.injured ? '<div class="pl-sub inj">Травмирован</div>' : ''}
@@ -419,6 +427,7 @@ function renderMatchSheet(id, opening) {
           <div class="mc-state">${isLive(m) ? `<span class="live-dot"></span>${esc(m.clock || 'LIVE')}` : m.state === 'post' ? 'Финал' : esc(cap(fmtWeekday.format(kickoff(m))))}</div></div>
         <div class="team">${badge(m.away.logo, 'mc-badge', m.away.name)}<div class="team-name">${esc(m.away.name)}</div></div>
       </div>
+      ${m.state === 'post' ? `<button class="btn soft mc-share" data-card="${esc(m.id)}">🖼 Картинка с итогом</button>` : ''}
     </div>`;
 
   const tabs = started ? [['events', 'События'], ['lineups', 'Составы'], ['stats', 'Статистика'], ['form', 'Форма']] : [['form', 'Форма'], ['info', 'О матче']];
@@ -727,6 +736,114 @@ async function share(m) {
   catch { toast('Не удалось скопировать'); }
 }
 
+// ---------- Картинка с итогом матча ----------
+function loadImage(src) {
+  return new Promise((resolve) => {
+    if (!src) return resolve(null);
+    const img = new Image();
+    img.crossOrigin = 'anonymous'; // иначе холст нельзя будет сохранить
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+async function drawResultCard(m, s) {
+  const W = 1080, H = 1350;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const font = (w, px) => `${w} ${px}px -apple-system, "Segoe UI", Roboto, Arial, sans-serif`;
+  const r = result(m);
+
+  // фон: красный градиент с белой полосой, как на форме
+  const bg = g.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, '#e1182c'); bg.addColorStop(0.6, '#8a0a17'); bg.addColorStop(1, '#3a040a');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.save(); g.translate(W / 2, 560); g.rotate(-0.14);
+  g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(-W, -46, W * 2, 92);
+  g.restore();
+
+  g.textAlign = 'center'; g.fillStyle = '#fff';
+  g.font = font(700, 38); g.globalAlpha = 0.85;
+  g.fillText([m.comp, m.round ? `${m.round} тур` : ''].filter(Boolean).join(' · ').toUpperCase(), W / 2, 120);
+  g.font = font(500, 34); g.globalAlpha = 0.7;
+  g.fillText(cap(fmtWeekday.format(kickoff(m))) + (m.venue ? ` · ${m.venue === 'Lukoil Arena' ? 'Лукойл Арена' : m.venue}` : ''), W / 2, 172);
+  g.globalAlpha = 1;
+
+  // эмблемы и названия
+  const [hl, al] = await Promise.all([loadImage(m.home.logo), loadImage(m.away.logo)]);
+  const logo = (img, x) => {
+    if (!img) return;
+    g.save(); g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = 30; g.shadowOffsetY = 12;
+    g.drawImage(img, x - 130, 250, 260, 260); g.restore();
+  };
+  logo(hl, 250); logo(al, W - 250);
+  g.font = font(800, 46);
+  g.fillText(m.home.name, 250, 580); g.fillText(m.away.name, W - 250, 580);
+
+  // счёт
+  g.font = font(900, 210);
+  g.fillText(`${m.home.score ?? 0}:${m.away.score ?? 0}`, W / 2, 800);
+
+  // итог для «Спартака»
+  const verdict = { W: 'ПОБЕДА!', D: 'НИЧЬЯ', L: 'ПОРАЖЕНИЕ' }[r] || 'ФИНАЛ';
+  g.font = font(900, 64);
+  const vw = g.measureText(verdict).width + 80;
+  g.fillStyle = r === 'W' ? '#ffffff' : 'rgba(255,255,255,0.18)';
+  g.beginPath(); g.roundRect(W / 2 - vw / 2, 850, vw, 100, 50); g.fill();
+  g.fillStyle = r === 'W' ? '#c8102e' : '#fff';
+  g.fillText(verdict, W / 2, 922);
+
+  // авторы голов
+  const goals = (s?.events || []).filter((e) => ['goal', 'penalty', 'own-goal'].includes(e.type));
+  g.font = font(600, 34); g.fillStyle = '#fff';
+  const col = (side, x, align) => {
+    g.textAlign = align;
+    goals.filter((e) => (e.type === 'own-goal' ? (e.side === 'home' ? 'away' : 'home') : e.side) === side).slice(0, 6)
+      .forEach((e, i) => g.fillText(`${e.player} ${e.minute}${e.type === 'penalty' ? ' (п)' : e.type === 'own-goal' ? ' (авт.)' : ''}`, x, 1030 + i * 50));
+  };
+  col('home', 80, 'left'); col('away', W - 80, 'right');
+
+  // подпись
+  g.textAlign = 'center'; g.globalAlpha = 0.75; g.font = font(700, 32);
+  g.fillText('🔴⚪ spartak.kotoryy.ru', W / 2, H - 60);
+  g.globalAlpha = 1;
+  return c;
+}
+
+let cardBlob = null;
+async function openShareCard(id) {
+  const m = findMatch(id);
+  if (!m || m.state !== 'post') return;
+  sheetMatchId = null;
+  openSheet(`<h2 class="sh-title">Итог матча</h2><div class="empty">Рисуем картинку…</div>`);
+  const s = m.src === 'espn' ? await loadSummary(id) : null;
+  const canvas = await drawResultCard(m, s);
+  cardBlob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+  const url = URL.createObjectURL(cardBlob);
+  const name = `spartak-${m.date.slice(0, 10)}.png`;
+  const file = new File([cardBlob], name, { type: 'image/png' });
+  const canShareFile = !!(navigator.canShare && navigator.canShare({ files: [file] }));
+  $('#sheetBody').innerHTML = `
+    <h2 class="sh-title">Итог матча</h2>
+    <img class="card-preview" src="${url}" alt="Картинка с итогом матча">
+    <div class="sh-actions">
+      ${canShareFile ? '<button class="btn primary" id="cardShare">Поделиться</button>' : ''}
+      <button class="btn ${canShareFile ? 'soft' : 'primary'}" id="cardSave">Сохранить</button>
+    </div>`;
+  const sh = $('#cardShare');
+  if (sh) sh.onclick = async () => {
+    try { await navigator.share({ files: [file], title: `${m.home.name} ${m.home.score}:${m.away.score} ${m.away.name}` }); } catch { /* отмена */ }
+  };
+  $('#cardSave').onclick = () => {
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('Картинка сохранена');
+  };
+}
+
 function setupTabs() {
   const tabs = [...document.querySelectorAll('.tab')];
   const ind = $('.tab-indicator');
@@ -754,6 +871,8 @@ $('#sheetClose').onclick = closeSheet;
 $('#sheetBackdrop').addEventListener('click', (e) => { if (e.target.id === 'sheetBackdrop') closeSheet(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 document.addEventListener('click', (e) => {
+  const card = e.target.closest('[data-card]');
+  if (card) { openShareCard(card.dataset.card); return; }
   const pl = e.target.closest('[data-player]');
   if (pl) { openPlayer(pl.dataset.player); return; }
   const open = e.target.closest('[data-open]');
