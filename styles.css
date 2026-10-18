@@ -263,11 +263,6 @@ img { display: block; }
 
 /* ---------- Шапка, live, соперничество ---------- */
 .top-actions { display: flex; gap: 8px; }
-#themeBtn .ic-moon { display: none; }
-[data-theme="light"] #themeBtn .ic-sun, [data-theme="classic"] #themeBtn .ic-sun { display: none; }
-[data-theme="light"] #themeBtn .ic-moon, [data-theme="classic"] #themeBtn .ic-moon { display: block; }
-#themeBtn svg { transition: transform .35s ease; }
-#themeBtn:active svg { transform: rotate(-40deg); }
 .chips { display: inline-flex; gap: 6px; align-items: center; }
 .rival {
   display: inline-block; margin-left: 8px; padding: 3px 8px; border-radius: 999px;

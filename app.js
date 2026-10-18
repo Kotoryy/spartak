@@ -436,7 +436,6 @@ function applyTheme() {
   document.documentElement.dataset.theme = settings.theme;
   const color = { dark: '#0d0a0b', light: '#f5f1f1', classic: '#b30f1f' }[settings.theme];
   document.querySelector('meta[name=theme-color]').setAttribute('content', color);
-  $('#themeBtn').setAttribute('aria-label', settings.theme === 'dark' ? 'Светлая тема' : 'Тёмная тема');
 }
 
 async function notifStatus() {
@@ -679,12 +678,6 @@ function setupTabs() {
 applyTheme();
 setupTabs();
 $('#refreshBtn').onclick = () => refresh(true);
-// Быстрый переключатель в шапке: тёмная ↔ светлая (из «Классики» — в тёмную)
-$('#themeBtn').onclick = () => {
-  settings.theme = settings.theme === 'dark' ? 'light' : 'dark';
-  saveSettings();
-  applyTheme();
-};
 $('#settingsBtn').onclick = openSettings;
 $('#sheetClose').onclick = closeSheet;
 $('#sheetBackdrop').addEventListener('click', (e) => { if (e.target.id === 'sheetBackdrop') closeSheet(); });
