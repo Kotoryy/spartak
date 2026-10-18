@@ -267,7 +267,7 @@ function renderTable() {
   const n = t.length;
   el.innerHTML = `
     <div class="table-card">
-      <div class="trow head"><span class="pos">#</span><span>Команда</span><span class="num">И</span><span class="num wide">В</span><span class="num wide">Н</span><span class="num wide">П</span><span class="num">±</span><span class="pts">О</span></div>
+      <div class="trow head"><span class="pos">#</span><span>Команда</span><span class="num" title="Игры">И</span><span class="num wide" title="Победы">В</span><span class="num wide" title="Ничьи">Н</span><span class="num wide" title="Поражения">П</span><span class="num" title="Разница забитых и пропущенных мячей">±</span><span class="pts" title="Очки">О</span></div>
       ${t.map((r) => {
         const zone = r.rank > n - 2 ? 'zone-out' : r.rank > n - 4 ? 'zone-po' : '';
         return `<div class="trow ${r.id === TEAM_ID ? 'me' : ''} ${zone}">
@@ -279,6 +279,14 @@ function renderTable() {
           <span class="pts">${esc(r.pts)}</span>
         </div>`;
       }).join('')}
+    </div>
+    <div class="t-legend">
+      <span><b>И</b> игры</span>
+      <span class="wide"><b>В</b> победы</span>
+      <span class="wide"><b>Н</b> ничьи</span>
+      <span class="wide"><b>П</b> поражения</span>
+      <span><b>±</b> разница мячей</span>
+      <span><b>О</b> очки</span>
     </div>
     <p class="note"><span class="legend po"></span>стыковые матчи <span class="legend out"></span>вылет · ${esc(data.season || 'РПЛ')}</p>`;
 }

@@ -297,6 +297,14 @@ img { display: block; }
 }
 .trow.zone-po { box-shadow: inset 3px 0 0 #e58f2a; }
 .trow.zone-out { box-shadow: inset 3px 0 0 var(--loss); }
+.t-legend {
+  display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; padding: 0 4px;
+  font-size: 12.5px; color: var(--muted);
+}
+.t-legend b { color: var(--text); font-weight: 800; margin-right: 3px; }
+.t-legend .wide { display: none; }
+@media (min-width: 470px) { .t-legend .wide { display: inline; } }
+[data-theme="classic"] .t-legend, [data-theme="classic"] .t-legend b { color: #fff; }
 .legend { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin: 0 4px -1px 8px; }
 .legend.po { background: #e58f2a; margin-left: 0; }
 .legend.out { background: var(--loss); }
