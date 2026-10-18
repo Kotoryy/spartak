@@ -18,6 +18,7 @@
 html { -webkit-text-size-adjust: 100%; }
 body {
   background: var(--bg);
+  transition: background-color .25s, color .25s;
   color: var(--text);
   font-family: var(--font);
   min-height: 100vh;
@@ -262,6 +263,11 @@ img { display: block; }
 
 /* ---------- Шапка, live, соперничество ---------- */
 .top-actions { display: flex; gap: 8px; }
+#themeBtn .ic-moon { display: none; }
+[data-theme="light"] #themeBtn .ic-sun, [data-theme="classic"] #themeBtn .ic-sun { display: none; }
+[data-theme="light"] #themeBtn .ic-moon, [data-theme="classic"] #themeBtn .ic-moon { display: block; }
+#themeBtn svg { transition: transform .35s ease; }
+#themeBtn:active svg { transform: rotate(-40deg); }
 .chips { display: inline-flex; gap: 6px; align-items: center; }
 .rival {
   display: inline-block; margin-left: 8px; padding: 3px 8px; border-radius: 999px;
@@ -418,6 +424,7 @@ body.no-scroll { overflow: hidden; }
 [data-theme="light"] .topbar { background: rgba(245, 241, 241, .75); }
 [data-theme="light"] .match, [data-theme="light"] .table-card, [data-theme="light"] .form-strip { box-shadow: 0 1px 3px rgba(60, 10, 15, .06); }
 [data-theme="light"] .date-box, [data-theme="light"] .rival { color: var(--red); }
+[data-theme="light"] .ha.home, [data-theme="classic"] .ha.home { background: var(--red); color: #fff; }
 
 /* Классика: красно-белая форма с полосой */
 [data-theme="classic"] {
