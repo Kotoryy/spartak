@@ -267,7 +267,7 @@ function renderTable() {
   const n = t.length;
   el.innerHTML = `
     <div class="table-card">
-      <div class="trow head"><span class="pos">#</span><span>Команда</span><span class="num" title="Игры">И</span><span class="num wide" title="Победы">В</span><span class="num wide" title="Ничьи">Н</span><span class="num wide" title="Поражения">П</span><span class="num" title="Разница забитых и пропущенных мячей">±</span><span class="pts" title="Очки">О</span></div>
+      <div class="trow head"><span class="pos">#</span><span>Команда</span><span class="num" title="Игры">И</span><span class="num wide" title="Выигрыши">В</span><span class="num wide" title="Ничьи">Н</span><span class="num wide" title="Поражения">П</span><span class="num" title="Разница забитых и пропущенных мячей">±</span><span class="pts" title="Очки">О</span></div>
       ${t.map((r) => {
         const zone = r.rank > n - 2 ? 'zone-out' : r.rank > n - 4 ? 'zone-po' : '';
         return `<div class="trow ${r.id === TEAM_ID ? 'me' : ''} ${zone}">
@@ -282,7 +282,7 @@ function renderTable() {
     </div>
     <div class="t-legend">
       <span><b>И</b> игры</span>
-      <span class="wide"><b>В</b> победы</span>
+      <span class="wide"><b>В</b> выигрыши</span>
       <span class="wide"><b>Н</b> ничьи</span>
       <span class="wide"><b>П</b> поражения</span>
       <span><b>±</b> разница мячей</span>
@@ -296,9 +296,79 @@ function render() {
   renderUpcoming();
   renderResults();
   renderTable();
+  renderSquad();
   $('#status').textContent = loading ? 'Обновляем данные…'
     : data?.updated ? `Обновлено ${fmtStamp.format(new Date(data.updated))}` : 'Данные пока не загрузились';
   if (sheetMatchId) renderMatchSheet(sheetMatchId, false);
+}
+
+// ---------- Состав ----------
+let squad = store.get('spartak-squad', null); // { ts, season, groups }
+let squadLoading = false;
+
+async function loadSquad(force = false) {
+  if (squadLoading || (!force && squad && Date.now() - squad.ts < 60 * MIN)) return;
+  squadLoading = true;
+  try {
+    squad = { ...(await getJSON('/squad')), ts: Date.now() };
+    store.set('spartak-squad', squad);
+  } catch { /* остаётся сохранённый состав */ }
+  squadLoading = false;
+  renderSquad();
+}
+
+const allPlayers = () => (squad?.groups || []).flatMap((g) => g.players);
+
+function renderSquad() {
+  const el = $('#panel-squad');
+  if (!squad) { el.innerHTML = `<div class="empty">${squadLoading ? 'Загружаем состав…' : 'Состав пока не загрузился'}</div>`; return; }
+  const ps = allPlayers();
+  const best = (key) => ps.filter((p) => p[key] > 0).sort((a, b) => b[key] - a[key] || a.apps - b.apps)[0];
+  const scorer = best('goals'), assister = best('assists');
+  const leader = (p, key, label) => (p ? `<button class="leader" data-player="${esc(p.id)}">
+      <div class="leader-lbl">${label}</div><div class="leader-num">${p[key]}</div><div class="leader-name">${esc(p.name)}</div></button>` : '');
+  el.innerHTML = `
+    <div class="leaders">${leader(scorer, 'goals', 'Бомбардир')}${leader(assister, 'assists', 'Ассистент')}</div>
+    ${squad.groups.map((g) => `
+      <div class="sq-group">
+        <div class="sq-title"><span>${esc(g.title)}</span><span class="sq-cols"><span>И</span><span>Г</span><span>П</span></span></div>
+        <div class="table-card">${g.players.map((p) => `
+          <button class="sq-row" data-player="${esc(p.id)}">
+            <span class="sq-n">${esc(p.n || '–')}</span>
+            <span style="min-width:0"><div class="sq-name">${esc(p.name)}</div>
+              <div class="sq-meta">${p.flag ? `<img src="${esc(p.flag)}" alt="" loading="lazy">` : ''}${esc(p.country)}${p.age ? ` · ${p.age} ${plural(p.age, 'год', 'года', 'лет')}` : ''}${p.injured ? ' · <span class="inj">травма</span>' : ''}</div></span>
+            <span class="sq-v">${p.apps}</span>
+            <span class="sq-v ${p.goals ? 'hot' : ''}">${p.goals}</span>
+            <span class="sq-v ${p.assists ? 'hot' : ''}">${p.assists}</span>
+          </button>`).join('')}
+        </div>
+      </div>`).join('')}
+    <div class="t-legend"><span><b>И</b> игры</span><span><b>Г</b> голы</span><span><b>П</b> голевые передачи</span></div>
+    <p class="note">Статистика в чемпионате · ${esc(squad.season || 'РПЛ')}</p>`;
+}
+
+function openPlayer(id) {
+  const p = allPlayers().find((x) => x.id === id);
+  if (!p) return;
+  sheetMatchId = null;
+  const stat = (v, l) => `<div class="pl-stat"><b>${v ?? 0}</b><span>${l}</span></div>`;
+  const gk = p.pos === 'G';
+  openSheet(`
+    <div class="pl-head">
+      <div class="pl-n">${esc(p.n || '–')}</div>
+      <div class="pl-name">${esc(p.name)}</div>
+      <div class="pl-sub">${p.flag ? `<img src="${esc(p.flag)}" alt="">` : ''}${esc(p.country)}${p.age ? ` · ${p.age} ${plural(p.age, 'год', 'года', 'лет')}` : ''} · ${esc({ G: 'вратарь', D: 'защитник', M: 'полузащитник', F: 'нападающий' }[p.pos] || '')}</div>
+      ${p.injured ? '<div class="pl-sub inj">Травмирован</div>' : ''}
+    </div>
+    <div class="pl-stats">
+      ${stat(p.apps, plural(p.apps, 'матч', 'матча', 'матчей'))}
+      ${stat(p.apps - p.subIns, 'в старте')}
+      ${stat(p.subIns, 'на замену')}
+      ${gk ? stat(p.saves, 'сейвов') + stat(p.conceded, 'пропущено') : stat(p.goals, plural(p.goals, 'гол', 'гола', 'голов')) + stat(p.assists, plural(p.assists, 'передача', 'передачи', 'передач'))}
+      ${stat(p.yellow, plural(p.yellow, 'жёлтая', 'жёлтые', 'жёлтых'))}
+      ${p.red ? stat(p.red, plural(p.red, 'красная', 'красные', 'красных')) : ''}
+    </div>
+    <p class="note" style="text-align:center">Чемпионат России · ${esc(squad.season || '')}</p>`);
 }
 
 // ---------- Нижняя панель ----------
@@ -668,6 +738,7 @@ function setupTabs() {
     });
     document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === `panel-${name}`));
     store.set('spartak-tab', name);
+    if (name === 'squad') loadSquad();
   };
   tabs.forEach((t) => (t.onclick = () => select(t.dataset.tab)));
   const saved = store.get('spartak-tab', null);
@@ -683,6 +754,8 @@ $('#sheetClose').onclick = closeSheet;
 $('#sheetBackdrop').addEventListener('click', (e) => { if (e.target.id === 'sheetBackdrop') closeSheet(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 document.addEventListener('click', (e) => {
+  const pl = e.target.closest('[data-player]');
+  if (pl) { openPlayer(pl.dataset.player); return; }
   const open = e.target.closest('[data-open]');
   if (open) { openMatch(open.dataset.open); return; }
   const mt = e.target.closest('[data-mtab]');
