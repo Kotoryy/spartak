@@ -238,10 +238,11 @@ function renderHero(matches) {
             matches.find((x) => x.phase === 'upcoming' && x.kickoff.getTime() > now - 3 * 3600e3);
 
   if (!m) {
-    if (!Object.keys(state.events).length && !doneOnce) return; // оставляем скелетон
+    const noData = !Object.keys(state.events).length;
+    if (noData && !doneOnce) return; // оставляем скелетон
     hero.innerHTML = `<div class="hero-label"><span>Следующий матч</span></div>
-      <div class="hero-when" style="padding:30px 0"><div class="hero-date">Расписание пока не объявлено</div>
-      <div class="hero-meta">Загляните позже — данные обновятся автоматически</div></div>`;
+      <div class="hero-when" style="padding:30px 0"><div class="hero-date">${noData ? 'Не удалось загрузить расписание' : 'Расписание пока не объявлено'}</div>
+      <div class="hero-meta">${noData ? 'Источник данных занят — повторим через пару минут' : 'Загляните позже — данные обновятся автоматически'}</div></div>`;
     return;
   }
 
