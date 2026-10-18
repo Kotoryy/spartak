@@ -497,7 +497,7 @@ let squad = store.get('spartak-squad', null); // { ts, season, groups }
 let squadLoading = false;
 
 async function loadSquad(force = false) {
-  const fresh = squad && allPlayers().every((p) => p.photo) ? 60 * MIN : 5 * MIN; // пока фото собираются — чаще
+  const fresh = squad && allPlayers().every(photoOf) ? 60 * MIN : 5 * MIN; // пока фото собираются — чаще
   if (squadLoading || (!force && squad && Date.now() - squad.ts < fresh)) return;
   squadLoading = true;
   try {
@@ -509,6 +509,10 @@ async function loadSquad(force = false) {
 }
 
 const allPlayers = () => (squad?.groups || []).flatMap((g) => g.players);
+
+// Фото с официального сайта клуба (папка players/, список в players.js) важнее фото из TheSportsDB
+const clubPhotos = new Set(window.CLUB_PHOTOS || []);
+const photoOf = (p) => (clubPhotos.has(p.id) ? `players/${p.id}.webp` : p.photo);
 
 function renderSquad() {
   const el = $('#panel-squad');
@@ -540,8 +544,9 @@ function renderSquad() {
 
 // Фото игрока с номером в уголке; без фото — просто номер
 function avatar(p) {
-  if (!p.photo) return `<span class="sq-n">${esc(p.n || '–')}</span>`;
-  const src = p.photo.endsWith('/small') ? p.photo.replace(/\/small$/, '/tiny') : p.photo;
+  const photo = photoOf(p);
+  if (!photo) return `<span class="sq-n">${esc(p.n || '–')}</span>`;
+  const src = photo.endsWith('/small') ? photo.replace(/\/small$/, '/tiny') : photo;
   return `<span class="sq-ph"><img src="${esc(src)}" alt="" loading="lazy" onerror="this.parentNode.classList.add('noimg')"><b>${esc(p.n || '')}</b></span>`;
 }
 
@@ -553,7 +558,7 @@ function openPlayer(id) {
   const gk = p.pos === 'G';
   openSheet(`
     <div class="pl-head">
-      ${p.photo ? `<div class="pl-photo"><img src="${esc(p.photo)}" alt="${esc(p.name)}"><b>${esc(p.n || '')}</b></div>` : `<div class="pl-n">${esc(p.n || '–')}</div>`}
+      ${photoOf(p) ? `<div class="pl-photo"><img src="${esc(photoOf(p))}" alt="${esc(p.name)}"><b>${esc(p.n || '')}</b></div>` : `<div class="pl-n">${esc(p.n || '–')}</div>`}
       <div class="pl-name">${esc(p.name)}</div>
       <div class="pl-sub">${p.flag ? `<img src="${esc(p.flag)}" alt="">` : ''}${esc(p.country)}${p.age ? ` · ${p.age} ${plural(p.age, 'год', 'года', 'лет')}` : ''} · ${esc({ G: 'вратарь', D: 'защитник', M: 'полузащитник', F: 'нападающий' }[p.pos] || '')}</div>
       ${p.injured ? '<div class="pl-sub inj">Травмирован</div>' : ''}
