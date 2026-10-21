@@ -612,6 +612,7 @@ async function openMatch(id) {
   if (!m) return;
   sheetMatchId = id;
   matchTab = m.state === 'pre' ? 'form' : 'live';
+  linksOpen = false;
   renderMatchSheet(id, true);
   if (m.src === 'espn') {
     await Promise.all([loadSummary(id, isLive(m) || !summaries[id]), m.state !== 'pre' ? loadLive(id) : null]);
@@ -633,7 +634,11 @@ function renderMatchSheet(id, opening) {
           <div class="mc-state">${isLive(m) ? `<span class="live-dot"></span>${esc(m.clock || 'LIVE')}` : m.state === 'post' ? 'Финал' : esc(cap(fmtWeekday.format(kickoff(m))))}</div></div>
         <div class="team">${badge(m.away.logo, 'mc-badge', m.away.name)}<div class="team-name">${esc(m.away.name)}</div></div>
       </div>
-      ${m.state === 'post' ? `<button class="btn soft mc-share" data-card="${esc(m.id)}">🖼 Картинка с итогом</button>` : ''}
+      <div class="mc-actions">
+        <button class="btn soft mc-share" data-links="1">📝 Подробная трансляция</button>
+        ${m.state === 'post' ? `<button class="btn soft mc-share" data-card="${esc(m.id)}">🖼 Картинка с итогом</button>` : ''}
+      </div>
+      ${linksOpen ? linksBlock(m) : ''}
     </div>`;
 
   const tabs = started ? [['live', 'Трансляция'], ['events', 'События'], ['lineups', 'Составы'], ['stats', 'Статистика'], ['form', 'Форма']] : [['form', 'Форма'], ['info', 'О матче']];
@@ -648,6 +653,26 @@ function renderMatchSheet(id, opening) {
     <div class="mc-body">${body}</div>`;
   if (opening) openSheet(html);
   else $('#sheetBody').innerHTML = html;
+}
+
+// ---------- Подробная трансляция на других сайтах ----------
+let linksOpen = false;
+function broadcastLinks(m) {
+  const vs = `${m.home.name} ${m.away.name}`;
+  const day = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' }).format(kickoff(m));
+  return [
+    ['Sports.ru', m.sportsRu ? 'страница матча с онлайн-трансляцией' : 'календарь «Спартака»', m.sportsRu || 'https://www.sports.ru/football/club/spartak/calendar/'],
+    ['Чемпионат', 'поиск матча', `https://www.championat.com/search/?q=${encodeURIComponent(vs)}`],
+    ['Спорт-Экспресс', 'раздел РПЛ', 'https://www.sport-express.ru/football/rfpl/'],
+    ['Сайт «Спартака»', 'матчи на официальном сайте', 'https://spartak.com/matches'],
+    ['Яндекс', 'найти трансляцию', `https://yandex.ru/search/?text=${encodeURIComponent(`${vs} текстовая трансляция ${day}`)}`],
+  ];
+}
+function linksBlock(m) {
+  return `<div class="links">${broadcastLinks(m).map(([name, sub, url]) => `
+    <a class="link-row" href="${esc(url)}" target="_blank" rel="noopener">
+      <span><b>${esc(name)}</b><small>${esc(sub)}</small></span><span class="link-go">↗</span>
+    </a>`).join('')}</div>`;
 }
 
 // ---------- Текстовая трансляция ----------
@@ -1110,6 +1135,8 @@ document.addEventListener('fullscreenchange', () => { if (!document.fullscreenEl
 $('#sheetBackdrop').addEventListener('click', (e) => { if (e.target.id === 'sheetBackdrop') closeSheet(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSheet(); if (bigTimerId) closeBigTimer(); } });
 document.addEventListener('click', (e) => {
+  const lk = e.target.closest('[data-links]');
+  if (lk) { linksOpen = !linksOpen; renderMatchSheet(sheetMatchId, false); return; }
   const card = e.target.closest('[data-card]');
   if (card) { openShareCard(card.dataset.card); return; }
   const pl = e.target.closest('[data-player]');

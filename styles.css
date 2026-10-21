@@ -608,3 +608,14 @@ body.mode-victory::before {
 .mc-body ~ .seg, .seg { overflow-x: auto; scrollbar-width: none; }
 .seg::-webkit-scrollbar { display: none; }
 .seg-btn { flex: 1 0 auto; white-space: nowrap; padding: 8px 10px; }
+
+/* ---------- Ссылки на подробную трансляцию ---------- */
+.mc-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
+.mc-actions .mc-share { margin: 0; }
+.links { margin: 12px 0 4px; border-radius: 14px; overflow: hidden; background: var(--surface); border: 1px solid var(--border); text-align: left; }
+.link-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; color: var(--text); text-decoration: none; border-top: 1px solid var(--border); }
+.link-row:first-child { border-top: 0; }
+.link-row:hover { background: var(--surface-2); }
+.link-row b { display: block; font-size: 14.5px; }
+.link-row small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 1px; }
+.link-go { font-size: 18px; color: var(--red); font-weight: 800; }
