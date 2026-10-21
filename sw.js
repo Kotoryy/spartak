@@ -1,6 +1,6 @@
 // Кэширует оболочку приложения, чтобы оно открывалось без интернета, и показывает push-уведомления.
 // Данные матчей хранятся в localStorage самим приложением.
-const CACHE = 'spartak-shell-v3';
+const CACHE = 'spartak-shell-v4';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
