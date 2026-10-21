@@ -619,3 +619,75 @@ body.mode-victory::before {
 .link-row b { display: block; font-size: 14.5px; }
 .link-row small { display: block; font-size: 12.5px; color: var(--muted); margin-top: 1px; }
 .link-go { font-size: 18px; color: var(--red); font-weight: 800; }
+
+/* ---------- Сезон в цифрах, травмы, трансферы ---------- */
+/* Цвета серий проверены валидатором палитры: отдельно для тёмной и светлых тем */
+:root { --s-red: #e1182c; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --chart-surface: var(--sheet-bg); }
+[data-theme="light"], [data-theme="classic"] { --s-red: #d4142a; --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --chart-surface: #ffffff; }
+
+.sec-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin: 22px 4px 10px; }
+[data-theme="classic"] .sec-title { color: rgba(255,255,255,.85); }
+.chart-card { padding: 12px 8px 6px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); }
+.chart-wrap { position: relative; }
+.chart { display: block; width: 100%; height: auto; overflow: visible; }
+.chart .grid { stroke: var(--border); stroke-width: 1; }
+.chart .axis { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .dot { stroke: var(--chart-surface); stroke-width: 2; }
+.chart .end-label { fill: var(--text); font-size: 12px; font-weight: 700; }
+.chart .cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart .hit { fill: transparent; cursor: crosshair; }
+.chart-tip {
+  position: absolute; top: 0; z-index: 2; pointer-events: none; white-space: nowrap;
+  padding: 7px 10px; border-radius: 10px; font-size: 12.5px; line-height: 1.45;
+  background: var(--text); color: var(--bg); box-shadow: 0 6px 18px rgba(0,0,0,.25);
+}
+.tip-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.legend-row { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 2px 8px 8px; font-size: 12.5px; color: var(--text); }
+.legend-row i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.tbl-view { margin: 8px 4px 0; font-size: 13px; color: var(--muted); }
+[data-theme="classic"] .tbl-view { color: rgba(255,255,255,.85); }
+.tbl-view summary { cursor: pointer; }
+.tbl-view table { width: 100%; margin-top: 8px; border-collapse: collapse; background: var(--surface); color: var(--text); border-radius: 12px; overflow: hidden; }
+.tbl-view th, .tbl-view td { padding: 6px 10px; text-align: left; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.tbl-view th { color: var(--muted); font-weight: 600; border-top: 0; }
+
+.ha-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ha-card { padding: 14px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); }
+.ha-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.ha-pts { font-size: 30px; font-weight: 800; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.ha-pts small { font-size: 13px; font-weight: 600; color: var(--muted); }
+.ha-line { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+.ha-card .form-dots { margin-top: 10px; }
+.ha-card .form-dot { width: 22px; height: 22px; font-size: 11px; border-radius: 6px; }
+
+.abs-row { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--border); }
+.abs-row:first-child { border-top: 0; }
+.abs-row .sq-n { width: 30px; height: 30px; font-size: 12.5px; border-radius: 9px; }
+.abs-name { font-weight: 650; font-size: 14px; }
+.abs-name small { display: block; font-weight: 500; font-size: 12px; color: var(--muted); }
+.abs-tag { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; color: #fff; }
+.abs-tag.inj { background: var(--loss); }
+.abs-tag.sus { background: #e58f2a; }
+.fm-team .abs-row { padding: 7px 0; grid-template-columns: 30px 1fr auto; }
+
+.tr-cols { display: grid; gap: 12px; }
+@media (min-width: 600px) { .tr-cols { grid-template-columns: 1fr 1fr; } }
+.tr-head { font-size: 13px; font-weight: 700; margin: 0 4px 8px; }
+.tr-head.in { color: var(--win); }
+.tr-head.out { color: var(--loss); }
+[data-theme="classic"] .tr-head { color: #fff; }
+.tr-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--border); }
+.tr-row:first-child { border-top: 0; }
+.tr-date { font-size: 12.5px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tr-main b { display: block; font-size: 14px; }
+.tr-main small { display: block; font-size: 12px; color: var(--muted); margin-top: 1px; }
+.tr-fee { font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.note a { color: inherit; }
+
+.health-note {
+  display: flex; gap: 10px; align-items: flex-start; margin: 6px 0 12px; padding: 12px 14px; border-radius: 16px;
+  background: rgba(229, 143, 42, .14); border: 1px solid rgba(229, 143, 42, .45); color: var(--text); font-size: 13.5px; line-height: 1.4;
+}
+.health-note[hidden] { display: none; }
+[data-theme="classic"] .health-note { background: #fff3df; color: #4a2c00; }

@@ -488,10 +488,13 @@ function renderTable() {
       <span><b>±</b> разница мячей</span>
       <span><b>О</b> очки</span>
     </div>
-    <p class="note"><span class="legend po"></span>стыковые матчи <span class="legend out"></span>вылет · ${esc(data.season || 'РПЛ')}</p>`;
+    <p class="note"><span class="legend po"></span>стыковые матчи <span class="legend out"></span>вылет · ${esc(data.season || 'РПЛ')}</p>
+    <div id="seasonTable"></div>`;
+  renderSeasonTable();
 }
 
 function render() {
+  renderHealth();
   renderDayMode();
   renderHero();
   renderUpcoming();
@@ -501,6 +504,158 @@ function render() {
   $('#status').textContent = loading ? 'Обновляем данные…'
     : data?.updated ? `Обновлено ${fmtStamp.format(new Date(data.updated))}` : 'Данные пока не загрузились';
   if (sheetMatchId) renderMatchSheet(sheetMatchId, false);
+}
+
+// ---------- Сезон, трансферы, травмы, состояние источников ----------
+let season = store.get('spartak-season', null);       // { ts, rounds, places, homeAway, scorers, opponents }
+let transfers = store.get('spartak-transfers', null); // { ts, window, items, source }
+let absences = store.get('spartak-absences', null);   // { ts, matchId, homeName, awayName, home, away, source }
+const matchAbsences = {};                              // id матча -> отсутствующие (для карточки матча)
+
+async function loadCached(key, path, ttl, setter, after) {
+  const cur = store.get(key, null);
+  if (cur && Date.now() - cur.ts < ttl) return;
+  try {
+    const v = { ...(await getJSON(path)), ts: Date.now() };
+    store.set(key, v);
+    setter(v);
+    after();
+  } catch { /* остаются сохранённые данные */ }
+}
+const loadSeason = () => loadCached('spartak-season', '/season', 10 * MIN, (v) => (season = v), () => { renderSeasonTable(); renderScorers(); });
+const loadTransfers = () => loadCached('spartak-transfers', '/transfers', 6 * 60 * MIN, (v) => (transfers = v), renderTransfers);
+const loadAbsences = () => loadCached('spartak-absences', '/absences', 60 * MIN, (v) => (absences = v), renderAbsences);
+
+async function loadMatchAbsences(id) {
+  if (matchAbsences[id]) return;
+  try { matchAbsences[id] = await getJSON('/absences/' + encodeURIComponent(id)); } catch { /* нет данных */ }
+  if (sheetMatchId === id) renderMatchSheet(id, false);
+}
+
+// Предупреждение, если источник данных сломался или данные давно не обновлялись
+function renderHealth() {
+  const el = $('#healthNote');
+  if (!el) return;
+  const h = data?.health;
+  const stale = data?.updated && Date.now() - data.updated > 2 * 60 * MIN;
+  let text = '';
+  if (h && !h.ok && h.problems?.length) text = `${h.problems[0].text}. Показаны данные на ${fmtStamp.format(new Date(data.updated))}.`;
+  else if (stale && navigator.onLine) text = `Данные давно не обновлялись — последнее обновление ${fmtStamp.format(new Date(data.updated))}.`;
+  el.hidden = !text;
+  el.innerHTML = text ? `<span>⚠</span><span>${esc(text)}</span>` : '';
+}
+
+const ruOrdinalPlace = (n) => `${n}-е`;
+
+function haCard(title, r) {
+  const ppg = r.p ? (r.pts / r.p).toFixed(1).replace('.', ',') : '0';
+  return `<div class="ha-card">
+    <div class="ha-title">${title}</div>
+    <div class="ha-pts">${r.pts} <small>${plural(r.pts, 'очко', 'очка', 'очков')}</small></div>
+    <div class="ha-line">${r.w}В · ${r.d}Н · ${r.l}П за ${r.p} ${plural(r.p, 'матч', 'матча', 'матчей')}</div>
+    <div class="ha-line">Мячи ${r.gf}–${r.ga} · ${ppg} очка за игру</div>
+    <div class="form-dots">${r.form.map((f) => `<span class="form-dot ${f}">${RES_LETTER[f]}</span>`).join('')}</div>
+  </div>`;
+}
+
+function renderSeasonTable() {
+  const el = $('#seasonTable');
+  if (!el) return;
+  const p = season?.places || [];
+  if (!p.length) { el.innerHTML = season ? '' : '<div class="empty small">Загружаем сезон…</div>'; return; }
+  const teams = p[0].teams || 16;
+  el.innerHTML = `
+    <h3 class="sec-title">Место по турам</h3>
+    <div class="chart-card"><div id="placeChart"></div></div>
+    <details class="tbl-view"><summary>Показать таблицей</summary>
+      <table><tr><th>Тур</th><th>Соперник</th><th>Место</th><th>Очки</th></tr>
+      ${p.map((x, i) => `<tr><td>${x.round}</td><td>${esc(season.opponents?.[i] || '')}</td><td>${x.place}</td><td>${x.pts}</td></tr>`).join('')}</table>
+    </details>
+    <h3 class="sec-title">Дома и в гостях</h3>
+    <div class="ha-grid">${haCard('Дома', season.homeAway.home)}${haCard('В гостях', season.homeAway.away)}</div>`;
+  lineChart($('#placeChart'), {
+    series: [{ name: 'Спартак', color: '--s-red', values: p.map((x) => x.place) }],
+    labels: p.map((x) => x.round),
+    yMin: 1, yMax: teams, invert: true, yTicks: [1, 4, 8, 12, teams],
+    endLabel: (s) => `${ruOrdinalPlace(s.values.at(-1))} место`,
+    tip: (i) => `<b>${p[i].round} тур</b>${season.opponents?.[i] ? ' · ' + esc(season.opponents[i]) : ''}<br>${p[i].place}-е место · ${p[i].pts} ${plural(p[i].pts, 'очко', 'очка', 'очков')}`,
+    ariaLabel: 'Место «Спартака» в таблице РПЛ по турам',
+  });
+}
+
+function renderScorers() {
+  const el = $('#scorersBox');
+  if (!el) return;
+  const top = (season?.scorers || []).filter((s) => s.total > 0).slice(0, 3);
+  if (!top.length || !season.rounds) { el.innerHTML = ''; return; }
+  const colors = ['--s1', '--s2', '--s3'];
+  const series = top.map((s, i) => ({ name: s.name, color: colors[i], values: s.byRound }));
+  const last = (n) => n.split(' ').slice(-1)[0];
+  el.innerHTML = `
+    <h3 class="sec-title">Голы по ходу сезона</h3>
+    <div class="chart-card">
+      <div class="legend-row">${series.map((s) => `<span><i style="background:var(${s.color})"></i>${esc(s.name)}</span>`).join('')}</div>
+      <div id="scorerChart"></div>
+    </div>
+    <details class="tbl-view"><summary>Показать таблицей</summary>
+      <table><tr><th>Тур</th><th>Соперник</th>${series.map((s) => `<th>${esc(last(s.name))}</th>`).join('')}</tr>
+      ${Array.from({ length: season.rounds }, (_, i) => `<tr><td>${i + 1}</td><td>${esc(season.opponents?.[i] || '')}</td>${series.map((s) => `<td>${s.values[i]}</td>`).join('')}</tr>`).join('')}</table>
+    </details>`;
+  const maxG = Math.max(...top.map((s) => s.total), 1);
+  const tickStep = maxG > 8 ? 2 : 1;
+  lineChart($('#scorerChart'), {
+    series, labels: Array.from({ length: season.rounds }, (_, i) => i + 1),
+    yMin: 0, yMax: maxG, yTicks: Array.from({ length: Math.floor(maxG / tickStep) + 1 }, (_, i) => i * tickStep),
+    endLabel: (s) => `${esc(last(s.name))} ${s.values.at(-1)}`,
+    tip: (i) => `<b>${i + 1} тур</b>${season.opponents?.[i] ? ' · ' + esc(season.opponents[i]) : ''}<br>${series.map((s) => `<span class="tip-dot" style="background:var(${s.color})"></span>${esc(last(s.name))}: ${s.values[i]}`).join('<br>')}`,
+    ariaLabel: 'Голы лучших бомбардиров «Спартака» по турам, нарастающим итогом',
+  });
+}
+
+function absList(list) {
+  return list.map((p) => `<div class="abs-row"><span class="sq-n">${esc(p.n || '–')}</span><span class="abs-name">${esc(p.name)}<small>${esc(p.pos)}</small></span><span class="abs-tag ${p.reason === 'травма' ? 'inj' : 'sus'}">${esc(p.reason)}</span></div>`).join('');
+}
+
+function renderAbsences() {
+  const el = $('#absBox');
+  if (!el) return;
+  const a = absences;
+  if (!a?.matchId || !a.homeName) { el.innerHTML = ''; return; }
+  const ours = a.homeName === 'Спартак' ? a.home : a.away;
+  const opp = a.homeName === 'Спартак' ? a.awayName : a.homeName;
+  el.innerHTML = `
+    <h3 class="sec-title">Не сыграют против ${esc(opp)}</h3>
+    ${ours.length ? `<div class="table-card">${absList(ours)}</div>` : `<div class="empty small">Все игроки «Спартака» в строю 💪</div>`}
+    <p class="note">По данным превью матча на Sports.ru. Сроки восстановления источник не указывает.</p>`;
+}
+
+function renderTransfers() {
+  const el = $('#transfersBox');
+  if (!el) return;
+  const t = transfers;
+  if (!t?.items?.length) { el.innerHTML = ''; return; }
+  const row = (x) => `<div class="tr-row">
+      <span class="tr-date">${esc(x.date)}</span>
+      <span class="tr-main"><b>${esc(x.name)}</b><small>${[x.pos, x.dir === 'in' ? (x.from ? `из «${x.from}»` : '') : `в «${x.to}»`, x.note].filter(Boolean).map(esc).join(' · ')}</small></span>
+      <span class="tr-fee">${esc(x.fee || '')}</span>
+    </div>`;
+  const cleanFrom = (x) => ({ ...x, from: x.from === 'Свободный агент' ? '' : x.from, note: x.from === 'Свободный агент' && !x.note ? 'свободный агент' : x.note });
+  const ins = t.items.filter((x) => x.dir === 'in').map(cleanFrom), outs = t.items.filter((x) => x.dir === 'out').map((x) => ({ ...x, note: x.to === 'Свободный агент' && !x.note ? 'свободный агент' : x.note }));
+  el.innerHTML = `
+    <h3 class="sec-title">Трансферы · ${esc(t.window)}</h3>
+    <div class="tr-cols">
+      <div><div class="tr-head in">Пришли · ${ins.length}</div><div class="table-card">${ins.map(row).join('') || '<div class="empty small">Нет</div>'}</div></div>
+      <div><div class="tr-head out">Ушли · ${outs.length}</div><div class="table-card">${outs.map(row).join('') || '<div class="empty small">Нет</div>'}</div></div>
+    </div>
+    <p class="note">Источник: <a href="${esc(t.source)}" target="_blank" rel="noopener">Sports.ru</a></p>`;
+}
+
+function matchAbsBlock(m) {
+  const a = matchAbsences[m.id];
+  if (!a || (!a.home?.length && !a.away?.length)) return '';
+  const side = (list, name) => `<div class="fm-team"><div class="lu-title">${esc(name)}</div>${list.length ? absList(list) : '<div class="muted small">Все в строю</div>'}</div>`;
+  return `<div class="lu-title" style="margin-top:18px">Не сыграют</div>
+    <div class="form-grid">${side(a.home || [], m.home.name)}${side(a.away || [], m.away.name)}</div>`;
 }
 
 // ---------- Состав ----------
@@ -520,6 +675,7 @@ async function loadSquad(force = false) {
 }
 
 const allPlayers = () => (squad?.groups || []).flatMap((g) => g.players);
+const absentNames = () => new Set(absences ? (absences.homeName === 'Спартак' ? absences.home : absences.away).map((p) => p.name) : []);
 
 // Фото с официального сайта клуба (папка players/, список в players.js) важнее фото из TheSportsDB
 const clubPhotos = new Set(window.CLUB_PHOTOS || []);
@@ -535,6 +691,8 @@ function renderSquad() {
       <div class="leader-lbl">${label}</div><div class="leader-num">${p[key]}</div><div class="leader-name">${esc(p.name)}</div></button>` : '');
   el.innerHTML = `
     <div class="leaders">${leader(scorer, 'goals', 'Бомбардир')}${leader(assister, 'assists', 'Ассистент')}</div>
+    <div id="absBox"></div>
+    <div id="scorersBox"></div>
     ${squad.groups.map((g) => `
       <div class="sq-group">
         <div class="sq-title"><span>${esc(g.title)}</span><span class="sq-cols"><span>И</span><span>Г</span><span>П</span></span></div>
@@ -542,7 +700,7 @@ function renderSquad() {
           <button class="sq-row" data-player="${esc(p.id)}">
             ${avatar(p)}
             <span style="min-width:0"><div class="sq-name">${esc(p.name)}</div>
-              <div class="sq-meta">${p.flag ? `<img src="${esc(p.flag)}" alt="" loading="lazy">` : ''}${esc(p.country)}${p.age ? ` · ${p.age} ${plural(p.age, 'год', 'года', 'лет')}` : ''}${p.injured ? ' · <span class="inj">травма</span>' : ''}</div></span>
+              <div class="sq-meta">${p.flag ? `<img src="${esc(p.flag)}" alt="" loading="lazy">` : ''}${esc(p.country)}${p.age ? ` · ${p.age} ${plural(p.age, 'год', 'года', 'лет')}` : ''}${p.injured || absentNames().has(p.name) ? ' · <span class="inj">не сыграет</span>' : ''}</div></span>
             <span class="sq-v">${p.apps}</span>
             <span class="sq-v ${p.goals ? 'hot' : ''}">${p.goals}</span>
             <span class="sq-v ${p.assists ? 'hot' : ''}">${p.assists}</span>
@@ -550,7 +708,11 @@ function renderSquad() {
         </div>
       </div>`).join('')}
     <div class="t-legend"><span><b>И</b> игры</span><span><b>Г</b> голы</span><span><b>П</b> голевые передачи</span></div>
-    <p class="note">Статистика в чемпионате · ${esc(squad.season || 'РПЛ')}</p>`;
+    <p class="note">Статистика в чемпионате · ${esc(squad.season || 'РПЛ')}</p>
+    <div id="transfersBox"></div>`;
+  renderAbsences();
+  renderScorers();
+  renderTransfers();
 }
 
 // Фото игрока с номером в уголке; без фото — просто номер
@@ -612,6 +774,7 @@ async function openMatch(id) {
   if (!m) return;
   sheetMatchId = id;
   matchTab = m.state === 'pre' ? 'form' : 'live';
+  if (m.state === 'pre' && m.sportsRu) loadMatchAbsences(id);
   linksOpen = false;
   renderMatchSheet(id, true);
   if (m.src === 'espn') {
@@ -644,7 +807,7 @@ function renderMatchSheet(id, opening) {
   const tabs = started ? [['live', 'Трансляция'], ['events', 'События'], ['lineups', 'Составы'], ['stats', 'Статистика'], ['form', 'Форма']] : [['form', 'Форма'], ['info', 'О матче']];
   if (!tabs.some(([k]) => k === matchTab)) matchTab = tabs[0][0];
   let body;
-  if (m.src !== 'espn') body = `<div class="empty">Для кубковых матчей подробного отчёта нет.</div>${infoBlock(m, s)}`;
+  if (m.src !== 'espn') body = `<div class="empty">Подробный отчёт есть только у матчей РПЛ. Ход матча — по кнопке «Подробная трансляция».</div>${infoBlock(m, s)}`;
   else if (!s) body = `<div class="empty">Загружаем отчёт…</div>`;
   else body = { live: liveBlock, events: eventsBlock, lineups: lineupsBlock, stats: statsBlock, form: formBlock, info: infoBlock }[matchTab](m, s);
 
@@ -751,11 +914,11 @@ function infoBlock(m, s) {
     ['Судья', s?.referee],
     ['Зрители', s?.attendance ? s.attendance.toLocaleString('ru-RU') : ''],
   ].filter(([, v]) => v);
-  return `<div class="info">${rows.map(([k, v]) => `<div class="info-row"><span class="muted">${k}</span><span>${esc(v)}</span></div>`).join('')}</div>`;
+  return `${matchAbsBlock(m)}<div class="info">${rows.map(([k, v]) => `<div class="info-row"><span class="muted">${k}</span><span>${esc(v)}</span></div>`).join('')}</div>`;
 }
 
 // ---------- Настройки и уведомления ----------
-const PREF_LABELS = [['remind', 'За час до матча'], ['start', 'Начало матча'], ['goals', 'Голы'], ['final', 'Финальный счёт']];
+const PREF_LABELS = [['remind', 'За час до матча'], ['start', 'Начало матча'], ['goals', 'Голы'], ['final', 'Финальный счёт'], ['alerts', 'Сбои источников данных']];
 const THEMES = [['dark', 'Тёмная'], ['light', 'Светлая'], ['classic', 'Классика']];
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
@@ -946,6 +1109,12 @@ async function desktopWatch() {
       desktopNotify(`Финал: ${{ W: 'Победа! 🔴⚪', D: 'Ничья', L: 'Поражение' }[r] || ''}`, `${m.home.name} ${s.home.score}:${s.away.score} ${m.away.name}`, m.id);
     }
   }
+  // Сбой источника дольше 30 минут — одно уведомление на сбой (если включено)
+  if (settings.prefs.alerts) {
+    for (const p of data.health?.problems || []) {
+      if (now - p.since >= 30 * MIN && mark(`health:${p.id}:${p.since}`)) desktopNotify('⚠ Источник данных сломался', p.text);
+    }
+  }
   for (const [k, t] of Object.entries(seen)) if (now - t > 14 * 24 * 60 * MIN) delete seen[k];
   store.set('spartak-notified', seen);
 }
@@ -1117,7 +1286,8 @@ function setupTabs() {
     });
     document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === `panel-${name}`));
     store.set('spartak-tab', name);
-    if (name === 'squad') loadSquad();
+    if (name === 'squad') { loadSquad(); loadSeason(); loadTransfers(); loadAbsences(); }
+    if (name === 'table') loadSeason();
   };
   tabs.forEach((t) => (t.onclick = () => select(t.dataset.tab)));
   const saved = store.get('spartak-tab', null);
