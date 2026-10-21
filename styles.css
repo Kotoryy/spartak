@@ -592,3 +592,19 @@ body.mode-victory::before {
 .bt-time { font-size: clamp(64px, 17vw, 200px); font-weight: 900; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; margin: 18px 0 8px; text-shadow: 0 8px 0 rgba(0,0,0,.2); }
 .bt-meta { font-size: clamp(14px, 3vw, 20px); opacity: .8; }
 .bt-scarf { margin-top: 26px; font-size: clamp(18px, 4vw, 26px); font-weight: 700; }
+
+/* ---------- Текстовая трансляция ---------- */
+.live-note { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); margin: 0 4px 10px; }
+.feed { display: grid; gap: 6px; }
+.fl { display: grid; grid-template-columns: 42px 24px 1fr; gap: 6px; align-items: start; padding: 10px 10px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+.fl-min { font-size: 12.5px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; padding-top: 1px; }
+.fl-icon { text-align: center; font-size: 15px; }
+.fl-text { font-size: 14px; line-height: 1.45; }
+.fl.goal { background: rgba(225, 24, 44, .12); border-color: rgba(225, 24, 44, .35); }
+.fl.goal .fl-text { font-weight: 700; }
+.fl.goal.ours { background: linear-gradient(90deg, rgba(225, 24, 44, .35), rgba(225, 24, 44, .1)); }
+.fl.whistle .fl-text { font-weight: 650; }
+.fl.red { border-color: rgba(229, 72, 77, .5); }
+.mc-body ~ .seg, .seg { overflow-x: auto; scrollbar-width: none; }
+.seg::-webkit-scrollbar { display: none; }
+.seg-btn { flex: 1 0 auto; white-space: nowrap; padding: 8px 10px; }

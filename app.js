@@ -100,6 +100,8 @@ async function refresh(manual = false) {
     detectGoals(prev, data);
     const hm = heroMatch();
     if (hm && hm.src === 'espn' && (isLive(hm) || hm.state === 'post')) await loadSummary(hm.id, true);
+    const open = sheetMatchId && findMatch(sheetMatchId);
+    if (open && isLive(open)) await Promise.all([loadSummary(open.id, true), loadLive(open.id)]);
     desktopWatch();
   } catch (e) {
     if (manual || !data) toast(navigator.onLine ? 'Не удалось обновить — показаны сохранённые данные' : 'Нет интернета — показаны сохранённые данные');
@@ -609,10 +611,10 @@ async function openMatch(id) {
   const m = findMatch(id);
   if (!m) return;
   sheetMatchId = id;
-  matchTab = m.state === 'pre' ? 'form' : 'events';
+  matchTab = m.state === 'pre' ? 'form' : 'live';
   renderMatchSheet(id, true);
   if (m.src === 'espn') {
-    await loadSummary(id, isLive(m) || !summaries[id]);
+    await Promise.all([loadSummary(id, isLive(m) || !summaries[id]), m.state !== 'pre' ? loadLive(id) : null]);
     if (sheetMatchId === id) renderMatchSheet(id, false);
   }
 }
@@ -634,18 +636,39 @@ function renderMatchSheet(id, opening) {
       ${m.state === 'post' ? `<button class="btn soft mc-share" data-card="${esc(m.id)}">🖼 Картинка с итогом</button>` : ''}
     </div>`;
 
-  const tabs = started ? [['events', 'События'], ['lineups', 'Составы'], ['stats', 'Статистика'], ['form', 'Форма']] : [['form', 'Форма'], ['info', 'О матче']];
+  const tabs = started ? [['live', 'Трансляция'], ['events', 'События'], ['lineups', 'Составы'], ['stats', 'Статистика'], ['form', 'Форма']] : [['form', 'Форма'], ['info', 'О матче']];
   if (!tabs.some(([k]) => k === matchTab)) matchTab = tabs[0][0];
   let body;
   if (m.src !== 'espn') body = `<div class="empty">Для кубковых матчей подробного отчёта нет.</div>${infoBlock(m, s)}`;
   else if (!s) body = `<div class="empty">Загружаем отчёт…</div>`;
-  else body = { events: eventsBlock, lineups: lineupsBlock, stats: statsBlock, form: formBlock, info: infoBlock }[matchTab](m, s);
+  else body = { live: liveBlock, events: eventsBlock, lineups: lineupsBlock, stats: statsBlock, form: formBlock, info: infoBlock }[matchTab](m, s);
 
   const html = `${head}
     ${m.src === 'espn' ? `<div class="seg">${tabs.map(([k, l]) => `<button class="seg-btn ${k === matchTab ? 'active' : ''}" data-mtab="${k}">${l}</button>`).join('')}</div>` : ''}
     <div class="mc-body">${body}</div>`;
   if (opening) openSheet(html);
   else $('#sheetBody').innerHTML = html;
+}
+
+// ---------- Текстовая трансляция ----------
+const liveFeeds = {}; // id -> { lines, ts }
+async function loadLive(id) {
+  try { liveFeeds[id] = { ...(await getJSON('/live/' + id)), ts: Date.now() }; } catch { /* нет трансляции */ }
+  return liveFeeds[id];
+}
+const LIVE_ICON = { goal: '⚽', yellow: '🟨', red: '🟥', sub: '🔁', whistle: '📣', shot: '🎯', miss: '💨', corner: '🚩', offside: '🏁', info: '📋' };
+
+function liveBlock(m) {
+  const f = liveFeeds[m.id];
+  if (!f) return `<div class="empty">Загружаем трансляцию…</div>`;
+  if (!f.lines?.length) return `<div class="empty">Трансляция начнётся перед стартовым свистком</div>`;
+  return `${isLive(m) ? '<div class="live-note"><span class="live-dot"></span>Обновляется автоматически</div>' : ''}
+    <div class="feed">${f.lines.map((l) => `
+      <div class="fl ${esc(l.type)} ${l.ours ? 'ours' : ''}">
+        <span class="fl-min">${esc(l.minute || '')}</span>
+        <span class="fl-icon">${LIVE_ICON[l.type] || '•'}</span>
+        <span class="fl-text">${esc(l.text)}</span>
+      </div>`).join('')}</div>`;
 }
 
 function eventsBlock(m, s) {
