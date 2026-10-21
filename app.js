@@ -100,8 +100,10 @@ const minuteKey = (t) => new Date(t).toISOString().slice(0, 16).replace(/[-T:]/g
 let bundle = null, bundleAt = 0;
 async function loadBundle() {
   if (bundle && Date.now() - bundleAt < 20000) return bundle;
-  // Снимок текущей минуты; если часы телефона спешат или снимок ещё не выложен — смотрим минуты назад
-  for (let off = 0; off <= 14; off++) {
+  // Снимок текущей минуты; часы телефона могут спешить или отставать — ищем по очереди в обе стороны (0, −1, +1, −2, +2…)
+  const offsets = [0];
+  for (let i = 1; i <= 12; i++) offsets.push(i, -i);
+  for (const off of offsets) {
     try {
       const b = await fetchJSON(MIRROR + minuteKey(Date.now() - off * 60000) + '.json', 10000);
       bundle = b; bundleAt = Date.now();
