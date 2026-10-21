@@ -612,6 +612,59 @@ function renderScorers() {
   });
 }
 
+// ---------- Новости ----------
+// Только заголовки и ссылки: сами статьи открываются на сайтах изданий
+let news = store.get('spartak-news', null); // { ts, items, failed }
+let newsSeen = store.get('spartak-news-seen', 0); // время прошлого просмотра — чтобы отметить новые
+let newsSeenBefore = newsSeen;
+
+async function loadNews(force = false) {
+  if (!force && news && Date.now() - news.ts < 10 * MIN) return;
+  try {
+    news = { ...(await getJSON('/news')), ts: Date.now() };
+    store.set('spartak-news', news);
+  } catch { /* остаются сохранённые */ }
+  renderNews();
+  markNewsTab();
+}
+
+function openNews() {
+  newsSeenBefore = newsSeen;
+  newsSeen = Date.now();
+  store.set('spartak-news-seen', newsSeen);
+  renderNews();
+  markNewsTab();
+  loadNews();
+}
+
+function markNewsTab() {
+  const tab = document.querySelector('[data-tab=news]');
+  const fresh = (news?.items || []).filter((n) => Date.parse(n.date) > newsSeen).length;
+  tab.dataset.badge = fresh ? (fresh > 9 ? '9+' : String(fresh)) : '';
+}
+
+function renderNews() {
+  const el = $('#panel-news');
+  if (!el) return;
+  if (!news?.items?.length) { el.innerHTML = `<div class="empty">${news ? 'Новостей пока нет' : 'Загружаем новости…'}</div>`; return; }
+  const today = new Date(), yest = new Date(Date.now() - 864e5);
+  const dayName = (d) => (sameDay(d, today) ? 'Сегодня' : sameDay(d, yest) ? 'Вчера' : cap(fmtWeekday.format(d)));
+  const groups = [];
+  for (const n of news.items) {
+    const d = new Date(n.date), name = dayName(d);
+    if (!groups.length || groups.at(-1).name !== name) groups.push({ name, items: [] });
+    groups.at(-1).items.push(n);
+  }
+  el.innerHTML = `${groups.map((g) => `
+    <h3 class="sec-title">${esc(g.name)}</h3>
+    <div class="table-card">${g.items.map((n) => `
+      <a class="news-row ${Date.parse(n.date) > newsSeenBefore && newsSeenBefore ? 'fresh' : ''}" href="${esc(n.url)}" target="_blank" rel="noopener">
+        <span class="news-time">${fmtTime.format(new Date(n.date))}</span>
+        <span class="news-main"><b>${esc(n.title)}</b><small>${esc(n.source)}</small></span>
+      </a>`).join('')}</div>`).join('')}
+    <p class="note">Заголовки собираются с Sports.ru, «Чемпионата» и «Спорт-Экспресса» раз в 15 минут; статьи открываются на сайтах изданий.${news.failed?.length ? ` Сейчас не отвечает: ${esc(news.failed.join(', '))}.` : ''}</p>`;
+}
+
 // ---------- Тренерский штаб (с сайта клуба, файл staff.js) ----------
 const STAFF = window.CLUB_STAFF || [];
 const ageOf = (iso) => {
@@ -1330,20 +1383,28 @@ async function openShareCard(id) {
 function setupTabs() {
   const tabs = [...document.querySelectorAll('.tab')];
   const ind = $('.tab-indicator');
+  // Подсветка — по реальному месту и ширине вкладки (строка вкладок прокручивается на узком экране)
+  const place = () => {
+    const t = tabs.find((x) => x.classList.contains('active'));
+    if (t) { ind.style.left = t.offsetLeft + 'px'; ind.style.width = t.offsetWidth + 'px'; }
+  };
+  window.addEventListener('resize', place);
   const select = (name) => {
-    tabs.forEach((t, i) => {
+    tabs.forEach((t) => {
       const on = t.dataset.tab === name;
       t.classList.toggle('active', on);
-      if (on) ind.style.transform = `translateX(${i * 100}%)`;
+      if (on) t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     });
+    place();
     document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === `panel-${name}`));
     store.set('spartak-tab', name);
     if (name === 'squad') { loadSquad(); loadSeason(); loadTransfers(); loadAbsences(); }
     if (name === 'table') loadSeason();
+    if (name === 'news') openNews();
   };
   tabs.forEach((t) => (t.onclick = () => select(t.dataset.tab)));
   const saved = store.get('spartak-tab', null);
-  if (saved && tabs.some((t) => t.dataset.tab === saved)) select(saved);
+  if (saved && tabs.some((t) => t.dataset.tab === saved)) select(saved); else place();
 }
 
 // ---------- Старт ----------
@@ -1380,6 +1441,7 @@ document.addEventListener('visibilitychange', () => {
 if (desk) desk.onUpdate?.((u) => { const l = $('#updLine'); if (l) l.textContent = `Версия ${u.current || ''} · ${updateText(u)}`; });
 
 render();
+loadNews();
 refresh().then(() => {
   const id = new URLSearchParams(location.search).get('match');
   if (id && findMatch(id)) openMatch(id);

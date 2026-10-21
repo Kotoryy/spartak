@@ -13,20 +13,20 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Спартак">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" type="image/png" href="icons/icon-192.png">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="icons/icon-192.png?v=3a38a2f1">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=c6cc809f">
   <script>
     // Тема до отрисовки, чтобы не мигало
     try { document.documentElement.dataset.theme = JSON.parse(localStorage.getItem('spartak-settings') || '{}').theme || 'dark'; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=3a4af9c7">
+  <link rel="stylesheet" href="styles.css?v=6ae7f400">
 </head>
 <body>
   <div class="bg-glow" aria-hidden="true"></div>
 
   <header class="topbar">
     <div class="brand">
-      <img src="icons/icon-192.png" alt="" class="brand-icon">
+      <img src="icons/spartak-crest.png?v=85def54b" alt="ФК «Спартак»" class="brand-icon">
       <div>
         <div class="brand-title">Спартак</div>
         <div class="brand-sub">Матчи и результаты</div>
@@ -58,6 +58,7 @@
       <button class="tab" data-tab="results" role="tab">Результаты</button>
       <button class="tab" data-tab="table" role="tab">Таблица</button>
       <button class="tab" data-tab="squad" role="tab">Состав</button>
+      <button class="tab" data-tab="news" role="tab">Новости</button>
       <span class="tab-indicator" aria-hidden="true"></span>
     </nav>
 
@@ -65,6 +66,7 @@
     <section class="panel" id="panel-results"></section>
     <section class="panel" id="panel-table"></section>
     <section class="panel" id="panel-squad"></section>
+    <section class="panel" id="panel-news"></section>
 
     <footer class="footer">
       <div id="status">Загрузка…</div>
@@ -96,6 +98,6 @@
   <script src="players.js?v=2f7b58ba"></script>
   <script src="staff.js?v=b598356e"></script>
   <script src="charts.js?v=a2fb8c87"></script>
-  <script src="app.js?v=1d732109"></script>
+  <script src="app.js?v=8ad5d2af"></script>
 </body>
 </html>
