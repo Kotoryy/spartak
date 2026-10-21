@@ -33,7 +33,16 @@ function plural(n, one, few, many) {
   return many;
 }
 
-let data = store.get(DATA_KEY, null);       // { updated, season, matches, table }
+// У ESPN устаревшая эмблема «Спартака» с одной звездой — подставляем свою, с четырьмя (tools/make-crest.py)
+const CREST = 'icons/spartak-crest.png';
+function withCrest(d) {
+  if (!d) return d;
+  for (const m of d.matches || []) for (const t of [m.home, m.away]) if (t && t.id === TEAM_ID) t.logo = CREST;
+  for (const r of d.table || []) if (r.id === TEAM_ID) r.logo = CREST;
+  return d;
+}
+
+let data = withCrest(store.get(DATA_KEY, null)); // { updated, season, matches, table }
 let settings = Object.assign({ theme: 'dark', prefs: { remind: true, start: true, goals: true, final: true } }, store.get(SETTINGS_KEY, {}));
 const summaries = {};                         // отчёты о матчах: id -> summary
 let loading = false;
@@ -84,7 +93,7 @@ async function refresh(manual = false) {
   loading = true;
   setBusy(true);
   try {
-    const fresh = await getJSON('/data');
+    const fresh = withCrest(await getJSON('/data'));
     const prev = data;
     data = fresh;
     store.set(DATA_KEY, data);
