@@ -612,6 +612,56 @@ function renderScorers() {
   });
 }
 
+// ---------- Тренерский штаб (с сайта клуба, файл staff.js) ----------
+const STAFF = window.CLUB_STAFF || [];
+const ageOf = (iso) => {
+  if (!iso) return null;
+  const b = new Date(iso), n = new Date();
+  return n.getFullYear() - b.getFullYear() - (n < new Date(n.getFullYear(), b.getMonth(), b.getDate()) ? 1 : 0);
+};
+const staffPhoto = (s, cls) => (s.photo
+  ? `<span class="${cls}"><img src="${esc(s.photo)}" alt="" loading="lazy"></span>`
+  : `<span class="${cls} st-empty">${esc(s.name.split(' ').map((w) => w[0]).slice(0, 2).join(''))}</span>`);
+
+function renderStaff() {
+  const el = $('#staffBox');
+  if (!el || !STAFF.length) return;
+  const [head, ...rest] = STAFF;
+  const meta = (s) => [s.country, ageOf(s.birthday) ? `${ageOf(s.birthday)} ${plural(ageOf(s.birthday), 'год', 'года', 'лет')}` : ''].filter(Boolean).join(' · ');
+  el.innerHTML = `
+    <h3 class="sec-title">Тренерский штаб</h3>
+    <button class="coach-head" data-staff="${esc(head.id)}">
+      ${staffPhoto(head, 'coach-ph')}
+      <span><small>${esc(head.role)}</small><b>${esc(head.name)}</b><span class="coach-meta">${esc(meta(head))}</span></span>
+    </button>
+    <div class="table-card">${rest.map((s) => `
+      <button class="sq-row st-row" data-staff="${esc(s.id)}">
+        ${staffPhoto(s, 'sq-ph')}
+        <span style="min-width:0"><div class="sq-name">${esc(s.name)}</div><div class="sq-meta">${esc(s.role)} · ${esc(meta(s))}</div></span>
+      </button>`).join('')}
+    </div>`;
+}
+
+function openStaff(id) {
+  const s = STAFF.find((x) => x.id === id);
+  if (!s) return;
+  sheetMatchId = null;
+  const since = s.since ? new Date(s.since) : null;
+  const age = ageOf(s.birthday);
+  openSheet(`
+    <div class="pl-head">
+      ${s.photo ? `<div class="pl-photo"><img src="${esc(s.photo)}" alt="${esc(s.name)}"></div>` : ''}
+      <div class="pl-name">${esc(s.name)}</div>
+      <div class="pl-sub">${esc(s.role)}</div>
+    </div>
+    <div class="info">
+      <div class="info-row"><span class="muted">Гражданство</span><span>${esc(s.country)}</span></div>
+      ${age ? `<div class="info-row"><span class="muted">Возраст</span><span>${age} ${plural(age, 'год', 'года', 'лет')} (${esc(new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(s.birthday)))})</span></div>` : ''}
+      ${since ? `<div class="info-row"><span class="muted">В клубе</span><span>с ${esc(new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }).format(since).replace(/^\d+\s/, ''))}</span></div>` : ''}
+    </div>
+    <p class="note" style="text-align:center">По данным официального сайта клуба</p>`);
+}
+
 function absList(list) {
   return list.map((p) => `<div class="abs-row"><span class="sq-n">${esc(p.n || '–')}</span><span class="abs-name">${esc(p.name)}<small>${esc(p.pos)}</small></span><span class="abs-tag ${p.reason === 'травма' ? 'inj' : 'sus'}">${esc(p.reason)}</span></div>`).join('');
 }
@@ -709,7 +759,9 @@ function renderSquad() {
       </div>`).join('')}
     <div class="t-legend"><span><b>И</b> игры</span><span><b>Г</b> голы</span><span><b>П</b> голевые передачи</span></div>
     <p class="note">Статистика в чемпионате · ${esc(squad.season || 'РПЛ')}</p>
+    <div id="staffBox"></div>
     <div id="transfersBox"></div>`;
+  renderStaff();
   renderAbsences();
   renderScorers();
   renderTransfers();
@@ -1309,6 +1361,8 @@ document.addEventListener('click', (e) => {
   if (lk) { linksOpen = !linksOpen; renderMatchSheet(sheetMatchId, false); return; }
   const card = e.target.closest('[data-card]');
   if (card) { openShareCard(card.dataset.card); return; }
+  const stf = e.target.closest('[data-staff]');
+  if (stf) { openStaff(stf.dataset.staff); return; }
   const pl = e.target.closest('[data-player]');
   if (pl) { openPlayer(pl.dataset.player); return; }
   const open = e.target.closest('[data-open]');
