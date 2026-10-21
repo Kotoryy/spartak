@@ -2,6 +2,9 @@
 
 // ---------- Настройки ----------
 const API = 'https://spartak-api.kotoryy.ru'; // облачный сервер из папки cloud/
+// Зеркало данных на GitHub: в России соединения с Cloudflare обрываются после ~16 КБ, а GitHub открывается.
+// Сервер раз в минуту-пять кладёт туда снимок под именем текущей минуты (см. cloud/src/mirror.js).
+const MIRROR = 'https://raw.githubusercontent.com/Kotoryy/spartak-data/main/s/';
 const TEAM_ID = '1941';
 const DATA_KEY = 'spartak-data-v2';
 const SETTINGS_KEY = 'spartak-settings';
@@ -77,14 +80,66 @@ function metaLine(m) {
 }
 
 // ---------- Загрузка ----------
-async function getJSON(path) {
+// 4xx — это ответ сервера («нет такого матча»): помечаем final, чтобы не уходить из-за него на зеркало
+async function fetchJSON(url, timeout) {
   const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 15000);
+  const t = setTimeout(() => ctrl.abort(), timeout);
   try {
-    const res = await fetch(API + path, { signal: ctrl.signal, cache: 'no-store' });
+    const res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
+    if (res.status >= 400 && res.status < 500) throw Object.assign(new Error('HTTP ' + res.status), { final: true });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    return await res.json();
+    return await res.json(); // тело ждём не дольше таймаута — при обрыве соединения оно «зависает»
   } finally { clearTimeout(t); }
+}
+
+// Как сейчас доступен сервер: { direct: true|false, ts }. Без VPN в России — false, тогда читаем зеркало.
+let netMode = store.get('spartak-net', null);
+const setNet = (direct) => { netMode = { direct, ts: Date.now() }; store.set('spartak-net', netMode); };
+
+const minuteKey = (t) => new Date(t).toISOString().slice(0, 16).replace(/[-T:]/g, '');
+let bundle = null, bundleAt = 0;
+async function loadBundle() {
+  if (bundle && Date.now() - bundleAt < 20000) return bundle;
+  // Снимок текущей минуты; если часы телефона спешат или снимок ещё не выложен — смотрим минуты назад
+  for (let off = 0; off <= 14; off++) {
+    try {
+      const b = await fetchJSON(MIRROR + minuteKey(Date.now() - off * 60000) + '.json', 10000);
+      bundle = b; bundleAt = Date.now();
+      return b;
+    } catch { /* следующую минуту */ }
+  }
+  throw new Error('Зеркало данных недоступно');
+}
+function fromBundle(b, path) {
+  const simple = { '/data': 'data', '/squad': 'squad', '/season': 'season', '/news': 'news', '/transfers': 'transfers', '/absences': 'absences' };
+  if (simple[path]) return b[simple[path]];
+  let m;
+  if ((m = path.match(/^\/absences\/(.+)$/))) return b.absences?.matchId === decodeURIComponent(m[1]) ? b.absences : { matchId: m[1], home: [], away: [] };
+  if ((m = path.match(/^\/match\/(.+)$/))) return b.matches?.[m[1]]?.summary;
+  if ((m = path.match(/^\/live\/(.+)$/))) return b.matches?.[m[1]]?.live;
+  return null;
+}
+
+async function getJSON(path) {
+  if (!netMode || netMode.direct) {
+    const direct = fetchJSON(API + path, 9000);
+    if (netMode?.direct) {
+      try { return await direct; } catch (e) { if (e.final) throw e; setNet(false); }
+    } else {
+      // Первый запуск: даём прямому пути 4 секунды, иначе берём зеркало, а результат прямого запомним
+      const r = await Promise.race([direct.then((v) => ({ v }), (e) => ({ e })), new Promise((ok) => setTimeout(() => ok(null), 4000))]);
+      if (r && 'v' in r) { setNet(true); return r.v; }
+      if (r?.e?.final) throw r.e;
+      direct.then(() => setNet(true), (e) => { if (!e.final) setNet(false); });
+    }
+  } else if (Date.now() - netMode.ts > 30 * MIN) {
+    // Изредка проверяем в фоне, не заработал ли прямой путь (например, включили VPN)
+    setNet(false);
+    fetchJSON(API + '/data', 9000).then(() => setNet(true), () => {});
+  }
+  const v = fromBundle(await loadBundle(), path);
+  if (v == null) throw Object.assign(new Error('Нет в зеркале'), { final: true });
+  return v;
 }
 
 let pollTimer;
