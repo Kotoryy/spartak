@@ -113,7 +113,7 @@ async function loadBundle() {
   throw new Error('Зеркало данных недоступно');
 }
 function fromBundle(b, path) {
-  const simple = { '/data': 'data', '/squad': 'squad', '/season': 'season', '/news': 'news', '/transfers': 'transfers', '/absences': 'absences' };
+  const simple = { '/data': 'data', '/squad': 'squad', '/season': 'season', '/news': 'news', '/transfers': 'transfers', '/absences': 'absences', '/club/rotor': 'rotor' };
   if (simple[path]) return b[simple[path]];
   let m;
   if ((m = path.match(/^\/absences\/(.+)$/))) return b.absences?.matchId === decodeURIComponent(m[1]) ? b.absences : { matchId: m[1], home: [], away: [] };
@@ -160,6 +160,8 @@ async function refresh(manual = false) {
     const open = sheetMatchId && findMatch(sheetMatchId);
     if (open && isLive(open)) await Promise.all([loadSummary(open.id, true), loadLive(open.id)]);
     desktopWatch();
+    // «Ротор»: обновляем, если вкладка открыта или в программе для ПК включены его уведомления
+    if (document.querySelector('[data-tab=rotor]')?.classList.contains('active') || (desk && settings.prefs.rotor)) loadRotor();
   } catch (e) {
     if (manual || !data) toast(navigator.onLine ? 'Не удалось обновить — показаны сохранённые данные' : 'Нет интернета — показаны сохранённые данные');
   } finally {
@@ -458,6 +460,7 @@ function renderHero() {
 
 function tickCountdown() {
   tickBigTimer();
+  tickRotorCountdown();
   const el = $('#countdown');
   if (!el) return;
   let diff = Math.max(0, Number(el.dataset.t) - Date.now());
@@ -667,6 +670,187 @@ function renderScorers() {
     tip: (i) => `<b>${i + 1} тур</b>${season.opponents?.[i] ? ' · ' + esc(season.opponents[i]) : ''}<br>${series.map((s) => `<span class="tip-dot" style="background:var(${s.color})"></span>${esc(last(s.name))}: ${s.values[i]}`).join('<br>')}`,
     ariaLabel: 'Голы лучших бомбардиров «Спартака» по турам, нарастающим итогом',
   });
+}
+
+// ---------- Второй клуб: «Ротор» Волгоград (данные Sports.ru, см. cloud/src/club.js) ----------
+let rotor = store.get('spartak-rotor', null); // { ts, name, league, crest, matches, table, coach, groups, news, transfers }
+let rotorTab = store.get('spartak-rotor-tab', 'matches');
+let rotorLoading = false;
+
+async function loadRotor(force = false) {
+  const live = (rotor?.matches || []).some((m) => inWindow(m));
+  if (rotorLoading || (!force && rotor && Date.now() - rotor.ts < (live ? 30 * 1000 : 10 * MIN))) return;
+  rotorLoading = true;
+  const prev = rotor;
+  try {
+    rotor = { ...(await getJSON('/club/rotor')), ts: Date.now() };
+    store.set('spartak-rotor', rotor);
+    rotorDesktopWatch(prev, rotor);
+  } catch { /* остаются сохранённые данные */ }
+  rotorLoading = false;
+  renderRotor();
+}
+
+const rotorResult = (m) => {
+  if (m.state !== 'post' || m.home.score == null) return null;
+  const my = m.atHome ? m.home.score : m.away.score, their = m.atHome ? m.away.score : m.home.score;
+  return my > their ? 'W' : my < their ? 'L' : 'D';
+};
+const initials = (name) => esc(name.replace(/[«»"]/g, '').split(/[\s-]+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase());
+const clubBadge = (team, cls) => (team.logo
+  ? `<img class="${cls}" src="${esc(team.logo)}" alt="" loading="lazy">`
+  : `<span class="${cls} club-initials">${initials(team.name)}</span>`);
+
+function rotorHero() {
+  const list = rotor.matches;
+  const now = Date.now();
+  const m = list.find((x) => x.state === 'in') ||
+    list.filter((x) => x.state === 'post' && now - kickoff(x) < 5 * 60 * MIN).pop() ||
+    list.find((x) => x.state === 'pre');
+  if (!m) return '';
+  const started = m.state !== 'pre';
+  const r = rotorResult(m);
+  return `<div class="rotor-hero">
+    <div class="hero-label"><span>${m.state === 'in' ? 'Сейчас идёт' : m.state === 'post' ? 'Матч завершён' : 'Следующий матч'}</span>
+      <span class="chip">${m.state === 'in' ? 'LIVE' : r ? RES_LABEL[r] : m.atHome ? 'Дома' : 'В гостях'}</span></div>
+    <div class="rh-teams">
+      <div class="team">${clubBadge(m.home, 'rh-badge')}<div class="team-name">${esc(m.home.name)}</div></div>
+      <div class="rh-score">${started ? `${m.home.score ?? 0}:${m.away.score ?? 0}` : m.timeValid ? fmtTime.format(kickoff(m)) : '—'}</div>
+      <div class="team">${clubBadge(m.away, 'rh-badge')}<div class="team-name">${esc(m.away.name)}</div></div>
+    </div>
+    <div class="hero-when"><div class="hero-date">${esc(cap(fmtWeekday.format(kickoff(m))))}${m.timeValid && started ? ' · ' + fmtTime.format(kickoff(m)) : ''}</div>
+      <div class="hero-meta">${esc(m.comp)}</div></div>
+    ${!started ? `<div class="countdown" id="rotorCountdown" data-t="${kickoff(m).getTime()}"></div>` : ''}
+    ${m.sportsRu ? `<a class="btn rh-btn" href="${esc(m.sportsRu)}" target="_blank" rel="noopener">📝 ${started ? 'Подробности матча' : 'Превью матча'} на Sports.ru</a>` : ''}
+  </div>`;
+}
+
+function rotorMatchRow(m) {
+  const o = m.atHome ? m.away : m.home;
+  const r = rotorResult(m);
+  const right = m.state === 'pre'
+    ? `<span class="ha ${m.atHome ? 'home' : ''}">${m.atHome ? 'Дома' : 'В гостях'}</span>`
+    : `<div><div class="res-score">${m.home.score ?? '–'}:${m.away.score ?? '–'}</div>${r ? `<span class="res-tag ${r}">${RES_LABEL[r]}</span>` : m.state === 'in' ? '<span class="ha live">LIVE</span>' : ''}</div>`;
+  const when = m.state === 'pre' ? `${fmtWdShort.format(kickoff(m))}, ${m.timeValid ? fmtTime.format(kickoff(m)) : 'время уточняется'}` : (m.atHome ? 'Дома' : 'В гостях');
+  return `<a class="match" ${m.sportsRu ? `href="${esc(m.sportsRu)}" target="_blank" rel="noopener"` : ''}>
+    ${dateBox(kickoff(m))}
+    <div class="match-main">
+      <div class="match-teams">${clubBadge(o, 'mini-badge')}<span>${esc(o.name)}</span></div>
+      <div class="match-sub">${esc(when)} · ${esc(m.comp)}</div>
+    </div>
+    ${right}
+  </a>`;
+}
+
+function rotorMatches() {
+  const up = rotor.matches.filter((m) => m.state !== 'post');
+  const done = rotor.matches.filter((m) => m.state === 'post').reverse();
+  const league = done.filter((m) => m.comp === rotor.league && rotorResult(m));
+  const form = league.slice(0, 5);
+  return `
+    ${form.length ? `<div class="form-strip"><div><div class="lbl">Форма в лиге</div><div class="season-line">${league.filter((m) => rotorResult(m) === 'W').length}В · ${league.filter((m) => rotorResult(m) === 'D').length}Н · ${league.filter((m) => rotorResult(m) === 'L').length}П</div></div>
+      <div class="form-dots">${form.slice().reverse().map((m) => `<span class="form-dot ${rotorResult(m)}">${RES_LETTER[rotorResult(m)]}</span>`).join('')}</div></div>` : ''}
+    ${up.length ? `<h3 class="sec-title">Расписание</h3><div class="list">${up.map(rotorMatchRow).join('')}</div>` : ''}
+    <h3 class="sec-title">Результаты</h3>
+    <div class="list">${done.map(rotorMatchRow).join('') || '<div class="empty">Пока нет сыгранных матчей</div>'}</div>`;
+}
+
+function rotorTable() {
+  const t = rotor.table || [];
+  if (!t.length) return '<div class="empty">Таблица недоступна</div>';
+  return `<div class="table-card">
+      <div class="trow head"><span class="pos">#</span><span>Команда</span><span class="num" title="Игры">И</span><span class="num wide" title="Выигрыши">В</span><span class="num wide" title="Ничьи">Н</span><span class="num wide" title="Поражения">П</span><span class="num" title="Разница мячей">±</span><span class="pts" title="Очки">О</span></div>
+      ${t.map((r) => `<div class="trow ${r.slug === 'rotor' ? 'me rotor-me' : ''}">
+        <span class="pos">${r.rank}</span><span class="tname"><span>${esc(r.name)}</span></span>
+        <span class="num">${r.played}</span><span class="num wide">${r.win}</span><span class="num wide">${r.draw}</span><span class="num wide">${r.loss}</span>
+        <span class="num">${r.gd > 0 ? '+' : ''}${r.gd}</span><span class="pts">${r.pts}</span></div>`).join('')}
+    </div>
+    <div class="t-legend"><span><b>И</b> игры</span><span class="wide"><b>В</b> выигрыши</span><span class="wide"><b>Н</b> ничьи</span><span class="wide"><b>П</b> поражения</span><span><b>±</b> разница мячей</span><span><b>О</b> очки</span></div>
+    <p class="note">${esc(rotor.league || '')} · по данным Sports.ru</p>`;
+}
+
+function rotorSquad() {
+  const c = rotor.coach;
+  const all = rotor.groups.flatMap((g) => g.players);
+  const best = (k) => all.filter((p) => p[k] > 0).sort((a, b) => b[k] - a[k])[0];
+  const sc = best('goals'), as = best('assists');
+  const ava = (p) => (p.photo ? `<span class="sq-ph"><img src="${esc(p.photo)}" alt="" loading="lazy">${p.n ? `<b>${esc(p.n)}</b>` : ''}</span>` : `<span class="sq-n">${esc(p.n || '–')}</span>`);
+  const meta = (p) => [p.country, p.age ? `${p.age} ${plural(p.age, 'год', 'года', 'лет')}` : ''].filter(Boolean).join(' · ');
+  return `
+    ${c ? `<div class="coach-head rotor-coach">${c.photo ? `<span class="coach-ph"><img src="${esc(c.photo)}" alt=""></span>` : ''}
+      <span><small>Главный тренер</small><b>${esc(c.name)}</b><span class="coach-meta">${esc([c.country, ageOf(c.birthDate) ? `${ageOf(c.birthDate)} ${plural(ageOf(c.birthDate), 'год', 'года', 'лет')}` : ''].filter(Boolean).join(' · '))}</span></span></div>` : ''}
+    <div class="leaders">
+      ${sc ? `<div class="leader"><div class="leader-lbl">Бомбардир</div><div class="leader-num rotor-num">${sc.goals}</div><div class="leader-name">${esc(sc.name)}</div></div>` : ''}
+      ${as ? `<div class="leader"><div class="leader-lbl">Ассистент</div><div class="leader-num rotor-num">${as.assists}</div><div class="leader-name">${esc(as.name)}</div></div>` : ''}
+    </div>
+    ${rotor.groups.map((g) => `
+      <div class="sq-group">
+        <div class="sq-title"><span>${esc(g.title)}</span><span class="sq-cols"><span>И</span><span>Г</span><span>П</span></span></div>
+        <div class="table-card">${g.players.map((p) => `
+          <div class="sq-row">
+            ${ava(p)}
+            <span style="min-width:0"><div class="sq-name">${esc(p.name)}</div><div class="sq-meta">${esc(meta(p))}</div></span>
+            <span class="sq-v">${p.apps}</span><span class="sq-v ${p.goals ? 'hot' : ''}">${p.goals}</span><span class="sq-v ${p.assists ? 'hot' : ''}">${p.assists}</span>
+          </div>`).join('')}</div>
+      </div>`).join('')}
+    <div class="t-legend"><span><b>И</b> игры</span><span><b>Г</b> голы</span><span><b>П</b> голевые передачи</span></div>
+    ${rotor.transfers?.items?.length ? `<h3 class="sec-title">Трансферы · ${esc(rotor.transfers.window)}</h3>
+      <div class="table-card">${rotor.transfers.items.map((x) => `<div class="tr-row">
+        <span class="tr-date">${esc(x.date)}</span>
+        <span class="tr-main"><b>${x.dir === 'in' ? '→ ' : '← '}${esc(x.name)}</b><small>${[x.pos, x.dir === 'in' ? (x.from && x.from !== 'Свободный агент' ? `из «${x.from}»` : '') : `в «${x.to}»`, x.note].filter(Boolean).map(esc).join(' · ')}</small></span>
+        <span class="tr-fee">${esc(x.fee || '')}</span></div>`).join('')}</div>` : ''}
+    <p class="note">Статистика сезона и состав — Sports.ru</p>`;
+}
+
+function rotorNews() {
+  const items = rotor.news || [];
+  if (!items.length) return '<div class="empty">Новостей пока нет</div>';
+  return `<div class="table-card">${items.map((n) => `
+    <a class="news-row" href="${esc(n.url)}" target="_blank" rel="noopener">
+      <span class="news-time">${esc(new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' }).format(new Date(n.date)).replace('.', ''))}</span>
+      <span class="news-main"><b>${esc(n.title)}</b><small>${esc(n.source)} · ${fmtTime.format(new Date(n.date))}</small></span>
+    </a>`).join('')}</div>
+    <p class="note">Заголовки с Sports.ru; статьи открываются на сайте издания.</p>`;
+}
+
+function renderRotor() {
+  const el = $('#panel-rotor');
+  if (!el) return;
+  if (!rotor) { el.innerHTML = `<div class="empty">${rotorLoading ? 'Загружаем «Ротор»…' : 'Данные о «Роторе» пока не загрузились'}</div>`; return; }
+  const tabs = [['matches', 'Матчи'], ['table', 'Таблица'], ['squad', 'Состав'], ['news', 'Новости']];
+  const body = { matches: rotorMatches, table: rotorTable, squad: rotorSquad, news: rotorNews }[rotorTab] || rotorMatches;
+  el.innerHTML = `
+    <div class="rotor-head">${rotor.crest ? `<img src="${esc(rotor.crest)}" alt="">` : ''}<div><b>${esc(rotor.name)}</b><small>${esc(rotor.city || '')} · ${esc(rotor.league || '')}</small></div></div>
+    ${rotorHero()}
+    <div class="seg rotor-seg">${tabs.map(([k, l]) => `<button class="seg-btn ${k === rotorTab ? 'active' : ''}" data-rtab="${k}">${l}</button>`).join('')}</div>
+    ${body()}`;
+  tickRotorCountdown();
+}
+
+function tickRotorCountdown() {
+  const el = $('#rotorCountdown');
+  if (!el) return;
+  let diff = Math.max(0, Number(el.dataset.t) - Date.now());
+  const d = Math.floor(diff / 86400e3); diff -= d * 86400e3;
+  const h = Math.floor(diff / 3600e3); diff -= h * 3600e3;
+  const mi = Math.floor(diff / 60e3); diff -= mi * 60e3;
+  const s = Math.floor(diff / 1e3);
+  el.innerHTML = [[d, plural(d, 'день', 'дня', 'дней')], [h, plural(h, 'час', 'часа', 'часов')], [mi, 'мин'], [s, 'сек']]
+    .map(([n, l]) => `<div class="cd-cell"><div class="cd-num">${String(n).padStart(2, '0')}</div><div class="cd-lbl">${l}</div></div>`).join('');
+}
+
+// Программа для ПК: уведомления по «Ротору» сама, по изменению счёта (если включено в настройках)
+function rotorDesktopWatch(prev, next) {
+  if (!desk || !settings.prefs.rotor || !prev) return;
+  for (const m of next.matches) {
+    const o = prev.matches.find((x) => x.id === m.id);
+    if (!o) continue;
+    const title = `${m.home.name} — ${m.away.name}`;
+    if (o.state === 'pre' && m.state !== 'pre') desktopNotify(`«${next.name}»: матч начался`, title);
+    const before = (o.home.score ?? 0) + (o.away.score ?? 0), after = (m.home.score ?? 0) + (m.away.score ?? 0);
+    if (after > before) desktopNotify(`⚽ Гол в матче «${next.name}»`, `${m.home.name} ${m.home.score}:${m.away.score} ${m.away.name}`);
+    if (o.state !== 'post' && m.state === 'post') desktopNotify(`«${next.name}»: финал`, `${m.home.name} ${m.home.score}:${m.away.score} ${m.away.name}`);
+  }
 }
 
 // ---------- Новости ----------
@@ -1080,7 +1264,7 @@ function infoBlock(m, s) {
 }
 
 // ---------- Настройки и уведомления ----------
-const PREF_LABELS = [['remind', 'За час до матча'], ['start', 'Начало матча'], ['goals', 'Голы'], ['final', 'Финальный счёт'], ['alerts', 'Сбои источников данных']];
+const PREF_LABELS = [['remind', 'За час до матча'], ['start', 'Начало матча'], ['goals', 'Голы'], ['final', 'Финальный счёт'], ['rotor', 'Матчи «Ротора»'], ['alerts', 'Сбои источников данных']];
 const THEMES = [['dark', 'Тёмная'], ['light', 'Светлая'], ['classic', 'Классика']];
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
@@ -1453,11 +1637,13 @@ function setupTabs() {
       if (on) t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     });
     place();
+    document.body.classList.toggle('tab-rotor', name === 'rotor'); // на вкладке «Ротора» карточка «Спартака» не нужна
     document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === `panel-${name}`));
     store.set('spartak-tab', name);
     if (name === 'squad') { loadSquad(); loadSeason(); loadTransfers(); loadAbsences(); }
     if (name === 'table') loadSeason();
     if (name === 'news') openNews();
+    if (name === 'rotor') { renderRotor(); loadRotor(); }
   };
   tabs.forEach((t) => (t.onclick = () => select(t.dataset.tab)));
   const saved = store.get('spartak-tab', null);
@@ -1477,6 +1663,8 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeShe
 document.addEventListener('click', (e) => {
   const lk = e.target.closest('[data-links]');
   if (lk) { linksOpen = !linksOpen; renderMatchSheet(sheetMatchId, false); return; }
+  const rt = e.target.closest('[data-rtab]');
+  if (rt) { rotorTab = rt.dataset.rtab; store.set('spartak-rotor-tab', rotorTab); renderRotor(); return; }
   const card = e.target.closest('[data-card]');
   if (card) { openShareCard(card.dataset.card); return; }
   const stf = e.target.closest('[data-staff]');
@@ -1500,6 +1688,7 @@ if (desk) desk.onUpdate?.((u) => { const l = $('#updLine'); if (l) l.textContent
 render();
 loadNews();
 refresh().then(() => {
+  if (new URLSearchParams(location.search).get('club') === 'rotor') document.querySelector('[data-tab=rotor]')?.click();
   const id = new URLSearchParams(location.search).get('match');
   if (id && findMatch(id)) openMatch(id);
 });

@@ -720,3 +720,38 @@ body.mode-victory::before {
   content: attr(data-badge); position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
   background: var(--red); color: #fff; font-size: 10px; font-weight: 800; line-height: 16px; text-align: center;
 }
+
+/* ---------- «Ротор» (сине-белые цвета клуба) ---------- */
+:root { --rotor: #1b63c9; --rotor-deep: #0d3f8a; }
+.rotor-head { display: flex; align-items: center; gap: 12px; margin: 4px 4px 12px; }
+.rotor-head img { width: 48px; height: 48px; object-fit: contain; }
+.rotor-head b { display: block; font-size: 20px; font-weight: 800; }
+.rotor-head small { display: block; font-size: 13px; color: var(--muted); }
+[data-theme="classic"] .rotor-head, [data-theme="classic"] .rotor-head small { color: #fff; }
+.rotor-hero {
+  position: relative; border-radius: 24px; padding: 18px 18px 16px; color: #fff; margin-bottom: 12px;
+  background: linear-gradient(160deg, var(--rotor), var(--rotor-deep) 70%, #072553);
+  box-shadow: 0 18px 44px -14px rgba(27, 99, 201, .6);
+}
+.rotor-hero .hero-label { color: rgba(255,255,255,.85); }
+.rotor-hero .chip { background: rgba(255,255,255,.18); }
+.rh-teams { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin: 16px 0 12px; }
+.rh-badge { width: 60px; height: 60px; object-fit: contain; margin: 0 auto; filter: drop-shadow(0 6px 12px rgba(0,0,0,.3)); }
+.rh-score { font-size: 32px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.rotor-hero .hero-meta { color: rgba(255,255,255,.8); }
+.rotor-hero .cd-cell { background: rgba(0,0,0,.2); border-color: rgba(255,255,255,.15); }
+.rotor-hero .cd-lbl { color: rgba(255,255,255,.75); }
+.rh-btn { display: flex; margin-top: 12px; background: #fff; color: var(--rotor-deep); text-decoration: none; }
+.club-initials { display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); color: var(--muted); font-weight: 800; font-size: 12px; }
+.rh-badge.club-initials { background: rgba(255,255,255,.18); color: #fff; font-size: 18px; }
+.mini-badge { width: 24px; height: 24px; flex: none; object-fit: contain; }
+.mini-badge.club-initials { font-size: 9px; }
+.rotor-seg .seg-btn.active { background: var(--rotor); color: #fff; }
+.trow.rotor-me { background: linear-gradient(90deg, rgba(27,99,201,.32), rgba(27,99,201,.06)); }
+.rotor-coach { background: linear-gradient(135deg, var(--rotor), var(--rotor-deep)); box-shadow: 0 10px 26px -12px rgba(27,99,201,.7); }
+.rotor-num { color: var(--rotor); }
+[data-theme="dark"] .rotor-num, :root:not([data-theme]) .rotor-num { color: #5c9bff; }
+a.match { color: var(--text); text-decoration: none; }
+body.tab-rotor #hero, body.tab-rotor #dayBanner { display: none; }
+body.tab-rotor .tabs { margin-top: 8px; }
+.rotor-head img, .rh-badge:not(.club-initials) { border-radius: 12px; background: #fff; }
