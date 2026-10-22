@@ -752,6 +752,25 @@ body.mode-victory::before {
 .rotor-num { color: var(--rotor); }
 [data-theme="dark"] .rotor-num, :root:not([data-theme]) .rotor-num { color: #5c9bff; }
 a.match { color: var(--text); text-decoration: none; }
-body.tab-rotor #hero, body.tab-rotor #dayBanner { display: none; }
-body.tab-rotor .tabs { margin-top: 8px; }
 .rotor-head img, .rh-badge:not(.club-initials) { border-radius: 12px; background: #fff; }
+
+/* ---------- Переключатель команд ---------- */
+.team-switch {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin: 4px 0 14px;
+  border-radius: 16px; background: var(--surface); border: 1px solid var(--border);
+}
+.team-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 10px; border-radius: 12px;
+  font-weight: 700; font-size: 15px; color: var(--muted); transition: background .2s, color .2s;
+}
+.team-btn img { width: 26px; height: 26px; object-fit: contain; }
+.team-btn.active[data-team="spartak"] { background: var(--red); color: #fff; box-shadow: 0 4px 14px -4px rgba(225, 24, 44, .6); }
+.team-btn.active[data-team="rotor"] { background: var(--rotor); color: #fff; box-shadow: 0 4px 14px -4px rgba(27, 99, 201, .6); }
+.team-btn:not(.active) img { opacity: .75; }
+[data-theme="classic"] .team-switch { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.2); }
+[data-theme="classic"] .team-btn { color: rgba(255,255,255,.85); }
+[data-theme="classic"] .team-btn.active[data-team="spartak"] { background: #fff; color: var(--red-deep); }
+
+/* Экран «Ротора» вместо экрана «Спартака» */
+body.team-rotor #hero, body.team-rotor #dayBanner, body.team-rotor .tabs, body.team-rotor .panel { display: none !important; }
+body:not(.team-rotor) .rotor-view { display: none; }

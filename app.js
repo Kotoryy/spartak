@@ -161,7 +161,7 @@ async function refresh(manual = false) {
     if (open && isLive(open)) await Promise.all([loadSummary(open.id, true), loadLive(open.id)]);
     desktopWatch();
     // «Ротор»: обновляем, если вкладка открыта или в программе для ПК включены его уведомления
-    if (document.querySelector('[data-tab=rotor]')?.classList.contains('active') || (desk && settings.prefs.rotor)) loadRotor();
+    if (team === 'rotor' || (desk && settings.prefs.rotor)) loadRotor();
   } catch (e) {
     if (manual || !data) toast(navigator.onLine ? 'Не удалось обновить — показаны сохранённые данные' : 'Нет интернета — показаны сохранённые данные');
   } finally {
@@ -672,6 +672,24 @@ function renderScorers() {
   });
 }
 
+// ---------- Переключатель команд: «Спартак» / «Ротор» ----------
+// У каждой команды свой экран; выбор запоминается. Шапка (эмблема и название) меняется вместе с командой.
+let team = store.get('spartak-team', 'spartak') === 'rotor' ? 'rotor' : 'spartak';
+function setTeam(t, user = false) {
+  team = t === 'rotor' ? 'rotor' : 'spartak';
+  store.set('spartak-team', team);
+  const r = team === 'rotor';
+  document.body.classList.toggle('team-rotor', r);
+  document.querySelectorAll('.team-btn').forEach((b) => b.classList.toggle('active', b.dataset.team === team));
+  $('.brand-icon').src = r ? 'icons/rotor-crest.png' : 'icons/spartak-crest.png';
+  $('.brand-icon').alt = r ? 'ФК «Ротор»' : 'ФК «Спартак»';
+  $('.brand-title').textContent = r ? 'Ротор' : 'Спартак';
+  $('.brand-sub').textContent = r ? 'Волгоград · Первая лига' : 'Матчи и результаты';
+  document.title = r ? 'Ротор · Матчи' : 'Спартак · Матчи';
+  if (r) { renderRotor(); loadRotor(); }
+  if (user) scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 // ---------- Второй клуб: «Ротор» Волгоград (данные Sports.ru, см. cloud/src/club.js) ----------
 let rotor = store.get('spartak-rotor', null); // { ts, name, league, crest, matches, table, coach, groups, news, transfers }
 let rotorTab = store.get('spartak-rotor-tab', 'matches');
@@ -820,7 +838,6 @@ function renderRotor() {
   const tabs = [['matches', 'Матчи'], ['table', 'Таблица'], ['squad', 'Состав'], ['news', 'Новости']];
   const body = { matches: rotorMatches, table: rotorTable, squad: rotorSquad, news: rotorNews }[rotorTab] || rotorMatches;
   el.innerHTML = `
-    <div class="rotor-head">${rotor.crest ? `<img src="${esc(rotor.crest)}" alt="">` : ''}<div><b>${esc(rotor.name)}</b><small>${esc(rotor.city || '')} · ${esc(rotor.league || '')}</small></div></div>
     ${rotorHero()}
     <div class="seg rotor-seg">${tabs.map(([k, l]) => `<button class="seg-btn ${k === rotorTab ? 'active' : ''}" data-rtab="${k}">${l}</button>`).join('')}</div>
     ${body()}`;
@@ -1637,13 +1654,11 @@ function setupTabs() {
       if (on) t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     });
     place();
-    document.body.classList.toggle('tab-rotor', name === 'rotor'); // на вкладке «Ротора» карточка «Спартака» не нужна
     document.querySelectorAll('.panel').forEach((p) => p.classList.toggle('active', p.id === `panel-${name}`));
     store.set('spartak-tab', name);
     if (name === 'squad') { loadSquad(); loadSeason(); loadTransfers(); loadAbsences(); }
     if (name === 'table') loadSeason();
     if (name === 'news') openNews();
-    if (name === 'rotor') { renderRotor(); loadRotor(); }
   };
   tabs.forEach((t) => (t.onclick = () => select(t.dataset.tab)));
   const saved = store.get('spartak-tab', null);
@@ -1653,7 +1668,8 @@ function setupTabs() {
 // ---------- Старт ----------
 applyTheme();
 setupTabs();
-$('#refreshBtn').onclick = () => refresh(true);
+$('#refreshBtn').onclick = () => (team === 'rotor' ? loadRotor(true) : refresh(true));
+setTeam(team);
 $('#settingsBtn').onclick = openSettings;
 $('#sheetClose').onclick = closeSheet;
 $('#bigClose').onclick = closeBigTimer;
@@ -1663,6 +1679,8 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeShe
 document.addEventListener('click', (e) => {
   const lk = e.target.closest('[data-links]');
   if (lk) { linksOpen = !linksOpen; renderMatchSheet(sheetMatchId, false); return; }
+  const tb = e.target.closest('.team-btn');
+  if (tb) { setTeam(tb.dataset.team, true); return; }
   const rt = e.target.closest('[data-rtab]');
   if (rt) { rotorTab = rt.dataset.rtab; store.set('spartak-rotor-tab', rotorTab); renderRotor(); return; }
   const card = e.target.closest('[data-card]');
@@ -1688,7 +1706,7 @@ if (desk) desk.onUpdate?.((u) => { const l = $('#updLine'); if (l) l.textContent
 render();
 loadNews();
 refresh().then(() => {
-  if (new URLSearchParams(location.search).get('club') === 'rotor') document.querySelector('[data-tab=rotor]')?.click();
+  if (new URLSearchParams(location.search).get('club') === 'rotor') setTeam('rotor');
   const id = new URLSearchParams(location.search).get('match');
   if (id && findMatch(id)) openMatch(id);
 });

@@ -19,7 +19,7 @@
     // Тема до отрисовки, чтобы не мигало
     try { document.documentElement.dataset.theme = JSON.parse(localStorage.getItem('spartak-settings') || '{}').theme || 'dark'; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="styles.css?v=4848a50f">
+  <link rel="stylesheet" href="styles.css?v=e95ef2ff">
 </head>
 <body>
   <div class="bg-glow" aria-hidden="true"></div>
@@ -43,7 +43,12 @@
   </header>
 
   <main class="container">
+    <div class="team-switch" role="tablist" aria-label="Команда">
+      <button class="team-btn active" data-team="spartak" role="tab"><img src="icons/spartak-crest.png" alt="">Спартак</button>
+      <button class="team-btn" data-team="rotor" role="tab"><img src="icons/rotor-crest.png" alt="">Ротор</button>
+    </div>
     <div class="health-note" id="healthNote" hidden></div>
+    <section class="rotor-view" id="panel-rotor"></section>
     <section class="day-banner" id="dayBanner" hidden></section>
     <section class="hero" id="hero">
       <div class="hero-skeleton">
@@ -59,7 +64,6 @@
       <button class="tab" data-tab="table" role="tab">Таблица</button>
       <button class="tab" data-tab="squad" role="tab">Состав</button>
       <button class="tab" data-tab="news" role="tab">Новости</button>
-      <button class="tab" data-tab="rotor" role="tab">Ротор</button>
       <span class="tab-indicator" aria-hidden="true"></span>
     </nav>
 
@@ -68,7 +72,6 @@
     <section class="panel" id="panel-table"></section>
     <section class="panel" id="panel-squad"></section>
     <section class="panel" id="panel-news"></section>
-    <section class="panel" id="panel-rotor"></section>
 
     <footer class="footer">
       <div id="status">Загрузка…</div>
@@ -100,6 +103,6 @@
   <script src="players.js?v=2f7b58ba"></script>
   <script src="staff.js?v=b598356e"></script>
   <script src="charts.js?v=a2fb8c87"></script>
-  <script src="app.js?v=4b2a2031"></script>
+  <script src="app.js?v=3b04a489"></script>
 </body>
 </html>
